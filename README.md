@@ -27,6 +27,50 @@ You need API keys for:
 - **OpenAI**: For text embeddings ([Get API key](https://platform.openai.com/api-keys))
 - **GitHub Token** (optional): For higher rate limits ([Create token](https://github.com/settings/tokens))
 
+### Pinecone Setup
+
+The server will **automatically create** a Pinecone index if it doesn't exist, but this can fail due to plan limitations. Here are both approaches:
+
+#### Option 1: Automatic Index Creation (Recommended)
+The server will attempt to create an index named `openrag-index` (or your custom name) **automatically at startup**.
+
+**When it happens**: 
+- ⏰ **At MCP server startup** (not during build/install)
+- 🔄 **First time the server runs** with your API key
+- ⏳ **Takes 1-2 minutes** for Pinecone to provision the index
+
+**Index specifications**:
+- **Dimensions**: 1536 (for text-embedding-3-small)
+- **Metric**: cosine
+- **Environment**: Starter pod on GCP
+
+**Requirements**:
+- Pinecone Starter plan or higher (free tier has limitations)
+- API key with index creation permissions
+- Available index quota on your account
+
+**What you'll see**:
+```
+Starting OpenRAG MCP Server...
+Vector store initialized  ← Index created here
+All services passed health checks
+OpenRAG MCP Server is running
+```
+
+#### Option 2: Manual Index Creation (Backup)
+If automatic creation fails, create the index manually in your Pinecone console:
+
+1. Go to [Pinecone Console](https://app.pinecone.io/)
+2. Click "Create Index"
+3. Set these values:
+   - **Name**: `openrag-index` (or match your `PINECONE_INDEX` env var)
+   - **Dimensions**: `1536`
+   - **Metric**: `cosine`
+   - **Pod Type**: `s1.x1` (Starter) or higher
+4. Wait for index to be ready (usually 1-2 minutes)
+
+**Index Name**: Make sure the index name matches your `PINECONE_INDEX` environment variable (defaults to `openrag-index`).
+
 ### Installation
 
 1. **Clone and build**:
@@ -67,6 +111,29 @@ You need API keys for:
      }
    }
    ```
+
+### First Startup
+
+**What happens when the server starts for the first time:**
+
+1. **Server Initialization** (instant)
+   - Loads configuration from environment variables
+   - Validates API keys are present
+
+2. **Pinecone Index Creation** (1-2 minutes)
+   - Automatically creates `openrag-index` if it doesn't exist
+   - Waits for index to be ready for operations
+   - ⚠️ **This is when creation might fail** (see troubleshooting if issues occur)
+
+3. **Service Health Checks** (few seconds)
+   - Tests connections to Pinecone, OpenAI, and GitHub
+   - Reports any service issues
+
+4. **Ready for Requests** 
+   - Server is now ready to accept MCP tool calls
+   - You can start using `index_source`, `search_context`, etc.
+
+**If startup fails**, check the error message against the Troubleshooting section below.
 
 ## Available Tools
 
@@ -233,9 +300,18 @@ npx @modelcontextprotocol/inspector dist/index.js
    - Check variable names for typos
 
 2. **"Failed to initialize Pinecone index"**
-   - Verify your Pinecone API key is valid
-   - Check if index already exists with different dimensions
-   - Ensure you have quota for creating indexes
+   - **API Key Issues**: Verify your Pinecone API key is valid and has permissions
+   - **Plan Limitations**: Free tier users may need to upgrade to Starter plan for index creation
+   - **Index Quota**: Check if you've reached your plan's index limit (free tier: 1 index, starter: 5 indexes)
+   - **Existing Index**: If index exists with different dimensions (not 1536), delete it or use a different name
+   - **Manual Creation**: Create the index manually in Pinecone console (see Pinecone Setup section)
+   - **Environment Mismatch**: Ensure your Pinecone environment matches (defaults to us-east-1)
+   
+   **Common Error Messages**:
+   - `"Index already exists"`: Use existing index or change `PINECONE_INDEX` name
+   - `"Quota exceeded"`: Delete unused indexes or upgrade your Pinecone plan  
+   - `"Invalid dimensions"`: Existing index has wrong dimensions, create with 1536
+   - `"Environment not found"`: Check your `PINECONE_ENVIRONMENT` setting
 
 3. **"GitHub rate limit exceeded"**
    - Add a `GITHUB_TOKEN` environment variable
