@@ -30,9 +30,9 @@ export class VectorStoreService {
           dimension: 1536,
           metric: 'cosine',
           spec: {
-            pod: {
-              environment: 'gcp-starter',
-              podType: 'starter'
+            serverless: {
+              cloud: 'aws',
+              region: 'us-east-1'
             }
           }
         });
