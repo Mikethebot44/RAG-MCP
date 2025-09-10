@@ -7,4 +7,4 @@ node_modules
 .cursorconfig
 .cursorrules
 .cursorignore
-.cursorconfig
+.cursorconfig.env
