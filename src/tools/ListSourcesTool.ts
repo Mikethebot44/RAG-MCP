@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SourceInfo } from '../types/index.js';
 import { VectorStoreService } from '../services/VectorStoreService.js';
+import { createHash } from 'crypto';
 
 // Input schema for ListSources (no parameters needed)
 const ListSourcesInputSchema = z.object({});
@@ -233,8 +234,7 @@ export class ListSourcesTool {
    * Generate source ID
    */
   private generateSourceId(url: string): string {
-    const crypto = require('crypto');
-    return crypto.createHash('md5').update(url).digest('hex').substring(0, 12);
+    return createHash('md5').update(url).digest('hex').substring(0, 12);
   }
 
   /**

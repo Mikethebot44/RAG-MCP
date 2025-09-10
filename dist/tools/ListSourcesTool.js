@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createHash } from 'crypto';
 // Input schema for ListSources (no parameters needed)
 const ListSourcesInputSchema = z.object({});
 export class ListSourcesTool {
@@ -184,8 +185,7 @@ export class ListSourcesTool {
      * Generate source ID
      */
     generateSourceId(url) {
-        const crypto = require('crypto');
-        return crypto.createHash('md5').update(url).digest('hex').substring(0, 12);
+        return createHash('md5').update(url).digest('hex').substring(0, 12);
     }
     /**
      * Format sources for display
