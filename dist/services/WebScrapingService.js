@@ -1,10 +1,10 @@
 import { chromium } from 'playwright';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
-import { OpenRAGError } from '../types/index.js';
+import { ScoutError } from '../types/index.js';
 export class WebScrapingService {
     browser = null;
-    userAgent = 'Mozilla/5.0 (compatible; OpenRAG-MCP/1.0.0; +https://github.com/terragon-labs/openrag-mcp)';
+    userAgent = 'Mozilla/5.0 (compatible; Scout-MCP/1.0.0; +https://github.com/terragon-labs/scout-mcp)';
     constructor() { }
     /**
      * Initialize the browser for web scraping
@@ -36,7 +36,7 @@ export class WebScrapingService {
     async processDocumentation(baseUrl, options = {}) {
         await this.initialize();
         if (!this.browser) {
-            throw new OpenRAGError('Failed to initialize browser', 'BROWSER_ERROR');
+            throw new ScoutError('Failed to initialize browser', 'BROWSER_ERROR');
         }
         const { maxDepth = 3, maxPages = 1000, onlyMainContent = true } = options;
         const visited = new Set();
@@ -78,7 +78,7 @@ export class WebScrapingService {
             };
         }
         catch (error) {
-            throw new OpenRAGError(`Failed to process documentation: ${error instanceof Error ? error.message : 'Unknown error'}`, 'SCRAPING_ERROR', { baseUrl, error });
+            throw new ScoutError(`Failed to process documentation: ${error instanceof Error ? error.message : 'Unknown error'}`, 'SCRAPING_ERROR', { baseUrl, error });
         }
     }
     /**
@@ -86,7 +86,7 @@ export class WebScrapingService {
      */
     async scrapePage(url, onlyMainContent) {
         if (!this.browser) {
-            throw new OpenRAGError('Browser not initialized', 'BROWSER_ERROR');
+            throw new ScoutError('Browser not initialized', 'BROWSER_ERROR');
         }
         const page = await this.browser.newPage();
         try {

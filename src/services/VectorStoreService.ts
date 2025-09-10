@@ -1,12 +1,12 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { Vector, QueryResult, VectorStoreError, OpenRAGConfig } from '../types/index.js';
+import { Vector, QueryResult, VectorStoreError, ScoutConfig } from '../types/index.js';
 
 export class VectorStoreService {
   private pinecone: Pinecone;
   private indexName: string;
   private batchSize: number;
 
-  constructor(config: OpenRAGConfig) {
+  constructor(config: ScoutConfig) {
     this.pinecone = new Pinecone({
       apiKey: config.pinecone.apiKey
     });

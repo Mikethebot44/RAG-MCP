@@ -4,7 +4,7 @@ import {
   IndexSourceInputSchema,
   IndexSourceInput,
   SourceType,
-  OpenRAGError
+  ScoutError
 } from '../types/index.js';
 import { GitHubService } from '../services/GitHubService.js';
 import { WebScrapingService } from '../services/WebScrapingService.js';
@@ -187,7 +187,7 @@ export class IndexSourceTool {
       console.error('Error indexing source:', error);
       
       const processingTime = Date.now() - startTime;
-      const errorMessage = error instanceof OpenRAGError 
+      const errorMessage = error instanceof ScoutError 
         ? error.message 
         : `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`;
 

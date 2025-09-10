@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { EmbeddingError, OpenRAGConfig } from '../types/index.js';
+import { EmbeddingError, ScoutConfig } from '../types/index.js';
 
 export class EmbeddingService {
   private openai: OpenAI;
@@ -7,7 +7,7 @@ export class EmbeddingService {
   private batchSize: number;
   private rateLimitDelay: number;
 
-  constructor(config: OpenRAGConfig) {
+  constructor(config: ScoutConfig) {
     this.openai = new OpenAI({
       apiKey: config.openai.apiKey
     });

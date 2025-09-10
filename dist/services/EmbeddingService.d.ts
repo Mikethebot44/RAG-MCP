@@ -1,10 +1,10 @@
-import { OpenRAGConfig } from '../types/index.js';
+import { ScoutConfig } from '../types/index.js';
 export declare class EmbeddingService {
     private openai;
     private model;
     private batchSize;
     private rateLimitDelay;
-    constructor(config: OpenRAGConfig);
+    constructor(config: ScoutConfig);
     /**
      * Generate embeddings for a single text
      */
