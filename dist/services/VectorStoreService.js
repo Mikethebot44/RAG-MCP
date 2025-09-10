@@ -30,7 +30,7 @@ export class VectorStoreService {
                             cloud: 'aws',
                             region: 'us-east-1'
                         }
-                      }
+                    }
                 });
                 // Wait for index to be ready
                 await this.waitForIndexReady();
