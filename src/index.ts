@@ -429,9 +429,7 @@ async function main() {
 }
 
 // Run if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  });
-}
+main().catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});

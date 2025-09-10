@@ -26,11 +26,11 @@ export class VectorStoreService {
                     dimension: 1536,
                     metric: 'cosine',
                     spec: {
-                        pod: {
-                            environment: 'gcp-starter',
-                            podType: 'starter'
+                        serverless: {
+                          cloud: 'aws',
+                          region: 'us-east-1'
                         }
-                    }
+                      }
                 });
                 // Wait for index to be ready
                 await this.waitForIndexReady();
