@@ -10,22 +10,31 @@
     "start": "node dist/index.js",
     "test": "npm run build && node dist/index.js"
   },
-  "keywords": ["mcp", "scout", "rag", "vector-search", "ai", "coding-assistant", "context"],
+  "keywords": [
+    "mcp",
+    "scout",
+    "rag",
+    "vector-search",
+    "ai",
+    "coding-assistant",
+    "context"
+  ],
   "author": "Terragon Labs",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "@pinecone-database/pinecone": "^3.0.3",
+    "@mozilla/readability": "^0.5.0",
     "@octokit/rest": "^21.0.2",
+    "@pinecone-database/pinecone": "^3.0.3",
+    "dotenv": "^17.2.2",
+    "jsdom": "^25.0.1",
     "openai": "^4.67.3",
     "playwright": "^1.48.2",
-    "jsdom": "^25.0.1",
-    "@mozilla/readability": "^0.5.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^22.7.5",
     "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.7.5",
     "typescript": "^5.6.3"
   }
 }
