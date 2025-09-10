@@ -333,8 +333,12 @@ class ScoutMCPServer {
   async start(): Promise<void> {
     try {
       console.log('Starting Scout MCP Server...');
+      console.log('Environment check:');
+      console.log(`- PINECONE_API_KEY: ${process.env.PINECONE_API_KEY ? 'SET' : 'NOT SET'}`);
+      console.log(`- OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
 
       // Initialize vector store
+      console.log('Initializing vector store...');
       await this.vectorStoreService.initialize();
       console.log('Vector store initialized');
 
@@ -362,17 +366,36 @@ class ScoutMCPServer {
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
       
-      console.log('Scout MCP Server is running');
+      console.log('Scout MCP Server is running and waiting for connections...');
       console.log('Configuration:');
       console.log(`- Pinecone Index: ${this.config.pinecone.indexName}`);
       console.log(`- OpenAI Model: ${this.config.openai.model}`);
       console.log(`- Max File Size: ${this.config.processing.maxFileSize} bytes`);
       console.log(`- Chunk Size: ${this.config.processing.maxChunkSize} chars`);
+      console.log('Press Ctrl+C to stop the server');
+
+      // Keep the process alive
+      await new Promise<void>((resolve) => {
+        process.on('SIGINT', () => {
+          console.log('\nShutting down...');
+          resolve();
+        });
+        process.on('SIGTERM', () => {
+          console.log('\nShutting down...');
+          resolve();
+        });
+      });
 
     } catch (error) {
       console.error('Failed to start Scout MCP Server:', error);
       
       if (error instanceof ScoutError) {
+        console.error('\nScout Error Details:');
+        console.error('- Code:', error.code);
+        console.error('- Message:', error.message);
+        if (error.details) {
+          console.error('- Details:', error.details);
+        }
         console.error('\nPlease check your configuration and try again.');
       }
       

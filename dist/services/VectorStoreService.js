@@ -27,8 +27,8 @@ export class VectorStoreService {
                     metric: 'cosine',
                     spec: {
                         serverless: {
-                          cloud: 'aws',
-                          region: 'us-east-1'
+                            cloud: 'aws',
+                            region: 'us-east-1'
                         }
                       }
                 });
