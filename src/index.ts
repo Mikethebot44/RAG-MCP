@@ -333,8 +333,12 @@ class ScoutMCPServer {
   async start(): Promise<void> {
     try {
       console.log('Starting Scout MCP Server...');
+      console.log('Environment check:');
+      console.log(`- PINECONE_API_KEY: ${process.env.PINECONE_API_KEY ? 'SET' : 'NOT SET'}`);
+      console.log(`- OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
 
       // Initialize vector store
+      console.log('Initializing vector store...');
       await this.vectorStoreService.initialize();
       console.log('Vector store initialized');
 
@@ -386,6 +390,12 @@ class ScoutMCPServer {
       console.error('Failed to start Scout MCP Server:', error);
       
       if (error instanceof ScoutError) {
+        console.error('\nScout Error Details:');
+        console.error('- Code:', error.code);
+        console.error('- Message:', error.message);
+        if (error.details) {
+          console.error('- Details:', error.details);
+        }
         console.error('\nPlease check your configuration and try again.');
       }
       
