@@ -6,7 +6,7 @@ export class GitHubService {
     constructor(config) {
         this.octokit = new Octokit({
             auth: config.github?.token, // Optional token for higher rate limits
-            userAgent: 'OpenRAG-MCP/1.0.0'
+            userAgent: 'Scout-MCP/1.0.0'
         });
     }
     /**

@@ -5,12 +5,12 @@ import {
   DocumentationContent,
   DocumentationPage,
   ProcessingOptions,
-  OpenRAGError
+  ScoutError
 } from '../types/index.js';
 
 export class WebScrapingService {
   private browser: Browser | null = null;
-  private userAgent = 'Mozilla/5.0 (compatible; OpenRAG-MCP/1.0.0; +https://github.com/terragon-labs/openrag-mcp)';
+  private userAgent = 'Mozilla/5.0 (compatible; Scout-MCP/1.0.0; +https://github.com/terragon-labs/scout-mcp)';
 
   constructor() {}
 
@@ -47,7 +47,7 @@ export class WebScrapingService {
     await this.initialize();
     
     if (!this.browser) {
-      throw new OpenRAGError('Failed to initialize browser', 'BROWSER_ERROR');
+      throw new ScoutError('Failed to initialize browser', 'BROWSER_ERROR');
     }
 
     const {
@@ -103,7 +103,7 @@ export class WebScrapingService {
       };
 
     } catch (error) {
-      throw new OpenRAGError(
+      throw new ScoutError(
         `Failed to process documentation: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'SCRAPING_ERROR',
         { baseUrl, error }
@@ -116,7 +116,7 @@ export class WebScrapingService {
    */
   private async scrapePage(url: string, onlyMainContent: boolean): Promise<DocumentationPage | null> {
     if (!this.browser) {
-      throw new OpenRAGError('Browser not initialized', 'BROWSER_ERROR');
+      throw new ScoutError('Browser not initialized', 'BROWSER_ERROR');
     }
 
     const page = await this.browser.newPage();

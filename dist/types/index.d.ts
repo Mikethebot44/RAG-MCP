@@ -82,7 +82,7 @@ export interface QueryResult {
     score: number;
     metadata: Vector['metadata'];
 }
-export interface OpenRAGConfig {
+export interface ScoutConfig {
     pinecone: {
         apiKey: string;
         environment: string;
@@ -186,18 +186,18 @@ export interface SearchResult {
     };
     score: number;
 }
-export declare class OpenRAGError extends Error {
+export declare class ScoutError extends Error {
     code: string;
     details?: any | undefined;
     constructor(message: string, code: string, details?: any | undefined);
 }
-export declare class GitHubError extends OpenRAGError {
+export declare class GitHubError extends ScoutError {
     constructor(message: string, details?: any);
 }
-export declare class VectorStoreError extends OpenRAGError {
+export declare class VectorStoreError extends ScoutError {
     constructor(message: string, details?: any);
 }
-export declare class EmbeddingError extends OpenRAGError {
+export declare class EmbeddingError extends ScoutError {
     constructor(message: string, details?: any);
 }
 //# sourceMappingURL=index.d.ts.map

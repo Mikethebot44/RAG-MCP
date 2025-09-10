@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
@@ -14,8 +15,8 @@ import { SearchContextTool } from './tools/SearchContextTool.js';
 import { ListSourcesTool } from './tools/ListSourcesTool.js';
 import { DeleteSourceTool } from './tools/DeleteSourceTool.js';
 // Types
-import { OpenRAGError } from './types/index.js';
-class OpenRAGMCPServer {
+import { ScoutError } from './types/index.js';
+class ScoutMCPServer {
     server;
     config;
     // Services
@@ -31,7 +32,7 @@ class OpenRAGMCPServer {
     deleteSourceTool;
     constructor() {
         this.server = new Server({
-            name: 'openrag-mcp',
+            name: 'scout-mcp',
             version: '1.0.0',
         }, {
             capabilities: {
@@ -50,13 +51,13 @@ class OpenRAGMCPServer {
         const requiredEnvVars = ['PINECONE_API_KEY', 'OPENAI_API_KEY'];
         const missingVars = requiredEnvVars.filter(name => !process.env[name]);
         if (missingVars.length > 0) {
-            throw new OpenRAGError(`Missing required environment variables: ${missingVars.join(', ')}\n` +
+            throw new ScoutError(`Missing required environment variables: ${missingVars.join(', ')}\n` +
                 'Please set the following environment variables:\n' +
                 '- PINECONE_API_KEY: Your Pinecone API key\n' +
                 '- OPENAI_API_KEY: Your OpenAI API key\n' +
                 'Optional variables:\n' +
                 '- PINECONE_ENVIRONMENT: Pinecone environment (default: us-east-1)\n' +
-                '- PINECONE_INDEX: Pinecone index name (default: openrag-index)\n' +
+                '- PINECONE_INDEX: Pinecone index name (default: scout-index)\n' +
                 '- GITHUB_TOKEN: GitHub token for higher rate limits (optional)\n' +
                 '- MAX_FILE_SIZE: Maximum file size in bytes (default: 1048576)\n' +
                 '- CHUNK_SIZE: Maximum chunk size in characters (default: 8192)\n' +
@@ -66,7 +67,7 @@ class OpenRAGMCPServer {
             pinecone: {
                 apiKey: process.env.PINECONE_API_KEY,
                 environment: process.env.PINECONE_ENVIRONMENT || 'us-east-1',
-                indexName: process.env.PINECONE_INDEX || 'openrag-index'
+                indexName: process.env.PINECONE_INDEX || 'scout-index'
             },
             openai: {
                 apiKey: process.env.OPENAI_API_KEY,
@@ -87,7 +88,7 @@ class OpenRAGMCPServer {
      * Initialize all services
      */
     initializeServices() {
-        console.log('Initializing OpenRAG MCP Server...');
+        console.log('Initializing Scout MCP Server...');
         this.vectorStoreService = new VectorStoreService(this.config);
         this.embeddingService = new EmbeddingService(this.config);
         this.githubService = new GitHubService(this.config);
@@ -158,12 +159,12 @@ class OpenRAGMCPServer {
                                 }]
                         };
                     default:
-                        throw new OpenRAGError(`Unknown tool: ${name}`, 'UNKNOWN_TOOL');
+                        throw new ScoutError(`Unknown tool: ${name}`, 'UNKNOWN_TOOL');
                 }
             }
             catch (error) {
                 console.error(`Error executing tool ${name}:`, error);
-                const errorMessage = error instanceof OpenRAGError
+                const errorMessage = error instanceof ScoutError
                     ? error.message
                     : `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 return {
@@ -270,7 +271,7 @@ class OpenRAGMCPServer {
      */
     async start() {
         try {
-            console.log('Starting OpenRAG MCP Server...');
+            console.log('Starting Scout MCP Server...');
             // Initialize vector store
             await this.vectorStoreService.initialize();
             console.log('Vector store initialized');
@@ -295,7 +296,7 @@ class OpenRAGMCPServer {
             // Start the server
             const transport = new StdioServerTransport();
             await this.server.connect(transport);
-            console.log('OpenRAG MCP Server is running');
+            console.log('Scout MCP Server is running');
             console.log('Configuration:');
             console.log(`- Pinecone Index: ${this.config.pinecone.indexName}`);
             console.log(`- OpenAI Model: ${this.config.openai.model}`);
@@ -303,8 +304,8 @@ class OpenRAGMCPServer {
             console.log(`- Chunk Size: ${this.config.processing.maxChunkSize} chars`);
         }
         catch (error) {
-            console.error('Failed to start OpenRAG MCP Server:', error);
-            if (error instanceof OpenRAGError) {
+            console.error('Failed to start Scout MCP Server:', error);
+            if (error instanceof ScoutError) {
                 console.error('\nPlease check your configuration and try again.');
             }
             process.exit(1);
@@ -314,7 +315,7 @@ class OpenRAGMCPServer {
      * Graceful shutdown
      */
     async shutdown() {
-        console.log('Shutting down OpenRAG MCP Server...');
+        console.log('Shutting down Scout MCP Server...');
         try {
             // Cleanup web scraping service
             await this.webScrapingService.cleanup();
@@ -327,7 +328,7 @@ class OpenRAGMCPServer {
 }
 // Main execution
 async function main() {
-    const server = new OpenRAGMCPServer();
+    const server = new ScoutMCPServer();
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
         console.log('\nReceived SIGINT, shutting down gracefully...');

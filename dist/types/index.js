@@ -22,27 +22,27 @@ export const DeleteSourceInputSchema = z.object({
     sourceId: z.string().describe('ID of the source to delete from vector store')
 });
 // Error types
-export class OpenRAGError extends Error {
+export class ScoutError extends Error {
     code;
     details;
     constructor(message, code, details) {
         super(message);
         this.code = code;
         this.details = details;
-        this.name = 'OpenRAGError';
+        this.name = 'ScoutError';
     }
 }
-export class GitHubError extends OpenRAGError {
+export class GitHubError extends ScoutError {
     constructor(message, details) {
         super(message, 'GITHUB_ERROR', details);
     }
 }
-export class VectorStoreError extends OpenRAGError {
+export class VectorStoreError extends ScoutError {
     constructor(message, details) {
         super(message, 'VECTOR_STORE_ERROR', details);
     }
 }
-export class EmbeddingError extends OpenRAGError {
+export class EmbeddingError extends ScoutError {
     constructor(message, details) {
         super(message, 'EMBEDDING_ERROR', details);
     }

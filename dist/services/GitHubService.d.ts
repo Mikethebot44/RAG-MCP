@@ -1,8 +1,8 @@
-import { GitHubUrlInfo, GitHubContent, ProcessingOptions, OpenRAGConfig } from '../types/index.js';
+import { GitHubUrlInfo, GitHubContent, ProcessingOptions, ScoutConfig } from '../types/index.js';
 export declare class GitHubService {
     private octokit;
     private rateLimit;
-    constructor(config: OpenRAGConfig);
+    constructor(config: ScoutConfig);
     /**
      * Parse GitHub URL to extract repository information
      */

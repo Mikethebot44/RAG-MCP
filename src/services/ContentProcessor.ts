@@ -7,14 +7,14 @@ import {
   DocumentationPage,
   ProcessingOptions,
   SourceType,
-  OpenRAGConfig
+  ScoutConfig
 } from '../types/index.js';
 
 export class ContentProcessor {
   private maxChunkSize: number;
   private chunkOverlap: number;
 
-  constructor(config: OpenRAGConfig) {
+  constructor(config: ScoutConfig) {
     this.maxChunkSize = config.processing.maxChunkSize;
     this.chunkOverlap = config.processing.chunkOverlap;
   }

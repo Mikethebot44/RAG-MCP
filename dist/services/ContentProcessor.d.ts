@@ -1,8 +1,8 @@
-import { ContentChunk, GitHubContent, DocumentationContent, OpenRAGConfig } from '../types/index.js';
+import { ContentChunk, GitHubContent, DocumentationContent, ScoutConfig } from '../types/index.js';
 export declare class ContentProcessor {
     private maxChunkSize;
     private chunkOverlap;
-    constructor(config: OpenRAGConfig);
+    constructor(config: ScoutConfig);
     /**
      * Process GitHub repository content into chunks
      */

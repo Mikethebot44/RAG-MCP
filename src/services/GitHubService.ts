@@ -5,7 +5,7 @@ import {
   GitHubContent, 
   ProcessingOptions,
   GitHubError,
-  OpenRAGConfig
+  ScoutConfig
 } from '../types/index.js';
 
 export class GitHubService {
@@ -15,10 +15,10 @@ export class GitHubService {
     reset: Date;
   } = { remaining: 5000, reset: new Date() };
 
-  constructor(config: OpenRAGConfig) {
+  constructor(config: ScoutConfig) {
     this.octokit = new Octokit({
       auth: config.github?.token, // Optional token for higher rate limits
-      userAgent: 'OpenRAG-MCP/1.0.0'
+      userAgent: 'Scout-MCP/1.0.0'
     });
   }
 

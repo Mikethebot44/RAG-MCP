@@ -100,7 +100,7 @@ export interface QueryResult {
 }
 
 // Configuration types
-export interface OpenRAGConfig {
+export interface ScoutConfig {
   pinecone: {
     apiKey: string;
     environment: string;
@@ -180,30 +180,30 @@ export interface SearchResult {
 }
 
 // Error types
-export class OpenRAGError extends Error {
+export class ScoutError extends Error {
   constructor(
     message: string,
     public code: string,
     public details?: any
   ) {
     super(message);
-    this.name = 'OpenRAGError';
+    this.name = 'ScoutError';
   }
 }
 
-export class GitHubError extends OpenRAGError {
+export class GitHubError extends ScoutError {
   constructor(message: string, details?: any) {
     super(message, 'GITHUB_ERROR', details);
   }
 }
 
-export class VectorStoreError extends OpenRAGError {
+export class VectorStoreError extends ScoutError {
   constructor(message: string, details?: any) {
     super(message, 'VECTOR_STORE_ERROR', details);
   }
 }
 
-export class EmbeddingError extends OpenRAGError {
+export class EmbeddingError extends ScoutError {
   constructor(message: string, details?: any) {
     super(message, 'EMBEDDING_ERROR', details);
   }

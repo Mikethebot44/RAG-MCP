@@ -1,9 +1,9 @@
-import { Vector, QueryResult, OpenRAGConfig } from '../types/index.js';
+import { Vector, QueryResult, ScoutConfig } from '../types/index.js';
 export declare class VectorStoreService {
     private pinecone;
     private indexName;
     private batchSize;
-    constructor(config: OpenRAGConfig);
+    constructor(config: ScoutConfig);
     /**
      * Initialize the Pinecone index if it doesn't exist
      */

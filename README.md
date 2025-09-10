@@ -1,6 +1,6 @@
-# OpenRAG MCP Server
+# Scout MCP Server
 
-An open-source Model Context Protocol (MCP) server that provides RAG-enhanced context to coding agents via vector search. Built as an alternative to proprietary solutions, OpenRAG gives developers control over their vector storage and indexing.
+An open-source Model Context Protocol (MCP) server that provides RAG-enhanced context to coding agents via vector search. Built as an alternative to proprietary solutions, Scout gives developers control over their vector storage and indexing.
 
 ## Features
 
@@ -32,7 +32,7 @@ You need API keys for:
 The server will **automatically create** a Pinecone index if it doesn't exist, but this can fail due to plan limitations. Here are both approaches:
 
 #### Option 1: Automatic Index Creation (Recommended)
-The server will attempt to create an index named `openrag-index` (or your custom name) **automatically at startup**.
+The server will attempt to create an index named `scout-index` (or your custom name) **automatically at startup**.
 
 **When it happens**: 
 - ⏰ **At MCP server startup** (not during build/install)
@@ -51,10 +51,10 @@ The server will attempt to create an index named `openrag-index` (or your custom
 
 **What you'll see**:
 ```
-Starting OpenRAG MCP Server...
+Starting Scout MCP Server...
 Vector store initialized  ← Index created here
 All services passed health checks
-OpenRAG MCP Server is running
+Scout MCP Server is running
 ```
 
 #### Option 2: Manual Index Creation (Backup)
@@ -63,20 +63,20 @@ If automatic creation fails, create the index manually in your Pinecone console:
 1. Go to [Pinecone Console](https://app.pinecone.io/)
 2. Click "Create Index"
 3. Set these values:
-   - **Name**: `openrag-index` (or match your `PINECONE_INDEX` env var)
+   - **Name**: `scout-index` (or match your `PINECONE_INDEX` env var)
    - **Dimensions**: `1536`
    - **Metric**: `cosine`
    - **Pod Type**: `s1.x1` (Starter) or higher
 4. Wait for index to be ready (usually 1-2 minutes)
 
-**Index Name**: Make sure the index name matches your `PINECONE_INDEX` environment variable (defaults to `openrag-index`).
+**Index Name**: Make sure the index name matches your `PINECONE_INDEX` environment variable (defaults to `scout-index`).
 
 ### Installation
 
 1. **Clone and build**:
    ```bash
    git clone <repository-url>
-   cd openrag-mcp
+   cd scout-mcp
    npm install
    npm run build
    ```
@@ -89,7 +89,7 @@ If automatic creation fails, create the index manually in your Pinecone console:
    
    # Optional
    export PINECONE_ENVIRONMENT="us-east-1"  # Default
-   export PINECONE_INDEX="openrag-index"    # Default
+   export PINECONE_INDEX="scout-index"    # Default
    export GITHUB_TOKEN="your_github_token"  # For higher rate limits
    export MAX_FILE_SIZE="1048576"           # 1MB default
    export CHUNK_SIZE="8192"                 # Default chunk size
@@ -99,9 +99,9 @@ If automatic creation fails, create the index manually in your Pinecone console:
    ```json
    {
      "mcpServers": {
-       "openrag": {
+       "scout": {
          "command": "node",
-         "args": ["/path/to/openrag-mcp/dist/index.js"],
+         "args": ["/path/to/scout-mcp/dist/index.js"],
          "env": {
            "PINECONE_API_KEY": "${PINECONE_API_KEY}",
            "OPENAI_API_KEY": "${OPENAI_API_KEY}",
@@ -121,7 +121,7 @@ If automatic creation fails, create the index manually in your Pinecone console:
    - Validates API keys are present
 
 2. **Pinecone Index Creation** (1-2 minutes)
-   - Automatically creates `openrag-index` if it doesn't exist
+   - Automatically creates `scout-index` if it doesn't exist
    - Waits for index to be ready for operations
    - ⚠️ **This is when creation might fail** (see troubleshooting if issues occur)
 
@@ -237,7 +237,7 @@ delete_source({
 | `PINECONE_API_KEY` | ✅ | - | Your Pinecone API key |
 | `OPENAI_API_KEY` | ✅ | - | Your OpenAI API key |
 | `PINECONE_ENVIRONMENT` | ❌ | us-east-1 | Pinecone environment |
-| `PINECONE_INDEX` | ❌ | openrag-index | Pinecone index name |
+| `PINECONE_INDEX` | ❌ | scout-index | Pinecone index name |
 | `GITHUB_TOKEN` | ❌ | - | GitHub token for higher rate limits |
 | `MAX_FILE_SIZE` | ❌ | 1048576 | Max file size in bytes (1MB) |
 | `CHUNK_SIZE` | ❌ | 8192 | Max chunk size in characters |
