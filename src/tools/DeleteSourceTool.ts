@@ -1,15 +1,14 @@
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { DeleteSourceInputSchema, DeleteSourceInput } from '../types/index.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
+import { DeleteSourceInputSchema, DeleteSourceInput, IVectorStoreService } from '../types/index.js';
 import { ListSourcesTool } from './ListSourcesTool.js';
 
 export class DeleteSourceTool {
-  private vectorStoreService: VectorStoreService;
+  private vectorStoreService: IVectorStoreService;
   private listSourcesTool: ListSourcesTool;
 
   constructor(
-    vectorStoreService: VectorStoreService,
+    vectorStoreService: IVectorStoreService,
     listSourcesTool: ListSourcesTool
   ) {
     this.vectorStoreService = vectorStoreService;

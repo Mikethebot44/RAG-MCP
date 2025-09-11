@@ -101,21 +101,33 @@ export interface QueryResult {
 
 // Configuration types
 export interface ScoutConfig {
-  pinecone: {
+  // Scout API configuration (SaaS mode)
+  scout?: {
+    apiKey: string;      // Scout API key (scout_abc123...)
+    projectId: string;   // UUID of user's project
+    apiUrl?: string;     // Default: https://api.scout.ai
+  };
+  
+  // Direct API configuration (self-hosted mode)
+  pinecone?: {
     apiKey: string;
     environment: string;
     indexName: string;
   };
-  openai: {
+  openai?: {
     apiKey: string;
     model?: string;
   };
+  
+  // Processing configuration (always required)
   processing: {
     maxFileSize: number;
     maxChunkSize: number;
     chunkOverlap: number;
     batchSize: number;
   };
+  
+  // GitHub configuration (optional)
   github?: {
     token?: string;
   };
@@ -177,6 +189,39 @@ export interface SearchResult {
     headingLevel?: number;
   };
   score: number;
+}
+
+// Service interfaces for dependency injection
+export interface IVectorStoreService {
+  initialize(): Promise<void>;
+  upsertVectors(vectors: Vector[]): Promise<void>;
+  queryVectors(vector: number[], options?: {
+    topK?: number;
+    filter?: Record<string, any>;
+    threshold?: number;
+    includeMetadata?: boolean;
+  }): Promise<QueryResult[]>;
+  deleteVectors(ids: string[]): Promise<void>;
+  deleteByFilter(filter: Record<string, any>): Promise<void>;
+  getIndexStats(): Promise<{
+    totalVectors: number;
+    dimension: number;
+    indexFullness: number;
+  }>;
+  listSources(): Promise<string[]>;
+  healthCheck(): Promise<boolean>;
+}
+
+export interface IEmbeddingService {
+  generateEmbedding(text: string): Promise<number[]>;
+  generateEmbeddings(texts: string[]): Promise<number[][]>;
+  generateQueryEmbedding(query: string): Promise<number[]>;
+  healthCheck(): Promise<boolean>;
+  getModelInfo(): {
+    model: string;
+    dimensions: number;
+    maxTokens: number;
+  };
 }
 
 // Error types

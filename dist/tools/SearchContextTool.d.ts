@@ -1,11 +1,9 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { SearchContextInput, SearchResult } from '../types/index.js';
-import { EmbeddingService } from '../services/EmbeddingService.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
+import { SearchContextInput, SearchResult, IEmbeddingService, IVectorStoreService } from '../types/index.js';
 export declare class SearchContextTool {
     private embeddingService;
     private vectorStoreService;
-    constructor(embeddingService: EmbeddingService, vectorStoreService: VectorStoreService);
+    constructor(embeddingService: IEmbeddingService, vectorStoreService: IVectorStoreService);
     /**
      * Get tool definition for MCP
      */

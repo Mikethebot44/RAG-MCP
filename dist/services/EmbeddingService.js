@@ -6,6 +6,9 @@ export class EmbeddingService {
     batchSize;
     rateLimitDelay;
     constructor(config) {
+        if (!config.openai) {
+            throw new EmbeddingError('OpenAI configuration is required for EmbeddingService (self-hosted mode)');
+        }
         this.openai = new OpenAI({
             apiKey: config.openai.apiKey
         });

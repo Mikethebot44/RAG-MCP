@@ -1,11 +1,10 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { DeleteSourceInput } from '../types/index.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
+import { DeleteSourceInput, IVectorStoreService } from '../types/index.js';
 import { ListSourcesTool } from './ListSourcesTool.js';
 export declare class DeleteSourceTool {
     private vectorStoreService;
     private listSourcesTool;
-    constructor(vectorStoreService: VectorStoreService, listSourcesTool: ListSourcesTool);
+    constructor(vectorStoreService: IVectorStoreService, listSourcesTool: ListSourcesTool);
     /**
      * Get tool definition for MCP
      */

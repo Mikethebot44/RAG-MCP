@@ -5,6 +5,9 @@ export class VectorStoreService {
     indexName;
     batchSize;
     constructor(config) {
+        if (!config.pinecone) {
+            throw new VectorStoreError('Pinecone configuration is required for VectorStoreService (self-hosted mode)');
+        }
         this.pinecone = new Pinecone({
             apiKey: config.pinecone.apiKey
         });

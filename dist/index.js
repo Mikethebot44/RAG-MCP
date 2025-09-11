@@ -6,6 +6,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextpro
 // Services
 import { VectorStoreService } from './services/VectorStoreService.js';
 import { EmbeddingService } from './services/EmbeddingService.js';
+import { ScoutVectorStoreService } from './services/ScoutVectorStoreService.js';
+import { ScoutEmbeddingService } from './services/ScoutEmbeddingService.js';
 import { GitHubService } from './services/GitHubService.js';
 import { WebScrapingService } from './services/WebScrapingService.js';
 import { ContentProcessor } from './services/ContentProcessor.js';
@@ -19,7 +21,7 @@ import { ScoutError } from './types/index.js';
 class ScoutMCPServer {
     server;
     config;
-    // Services
+    // Services (can be either direct API services or Scout proxy services)
     vectorStoreService;
     embeddingService;
     githubService;
@@ -48,49 +50,91 @@ class ScoutMCPServer {
      * Load configuration from environment variables
      */
     loadConfiguration() {
-        const requiredEnvVars = ['PINECONE_API_KEY', 'OPENAI_API_KEY'];
-        const missingVars = requiredEnvVars.filter(name => !process.env[name]);
-        if (missingVars.length > 0) {
-            throw new ScoutError(`Missing required environment variables: ${missingVars.join(', ')}\n` +
-                'Please set the following environment variables:\n' +
-                '- PINECONE_API_KEY: Your Pinecone API key\n' +
-                '- OPENAI_API_KEY: Your OpenAI API key\n' +
-                'Optional variables:\n' +
-                '- PINECONE_ENVIRONMENT: Pinecone environment (default: us-east-1)\n' +
-                '- PINECONE_INDEX: Pinecone index name (default: scout-index)\n' +
-                '- GITHUB_TOKEN: GitHub token for higher rate limits (optional)\n' +
-                '- MAX_FILE_SIZE: Maximum file size in bytes (default: 1048576)\n' +
-                '- CHUNK_SIZE: Maximum chunk size in characters (default: 8192)\n' +
-                '- BATCH_SIZE: Processing batch size (default: 100)', 'CONFIG_ERROR');
+        // Check if Scout API keys are provided (SaaS mode)
+        const hasScoutConfig = process.env.SCOUT_API_KEY && process.env.SCOUT_PROJECT_ID;
+        if (hasScoutConfig) {
+            // Scout API mode - only Scout keys required
+            console.log('🔄 Detected Scout API configuration (SaaS mode)');
+            return {
+                scout: {
+                    apiKey: process.env.SCOUT_API_KEY,
+                    projectId: process.env.SCOUT_PROJECT_ID,
+                    apiUrl: process.env.SCOUT_API_URL || 'https://api.scout.ai'
+                },
+                processing: {
+                    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1048576'),
+                    maxChunkSize: parseInt(process.env.CHUNK_SIZE || '8192'),
+                    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
+                    batchSize: parseInt(process.env.BATCH_SIZE || '100')
+                },
+                github: {
+                    token: process.env.GITHUB_TOKEN
+                }
+            };
         }
-        return {
-            pinecone: {
-                apiKey: process.env.PINECONE_API_KEY,
-                environment: process.env.PINECONE_ENVIRONMENT || 'us-east-1',
-                indexName: process.env.PINECONE_INDEX || 'scout-index'
-            },
-            openai: {
-                apiKey: process.env.OPENAI_API_KEY,
-                model: process.env.OPENAI_MODEL || 'text-embedding-3-small'
-            },
-            processing: {
-                maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1048576'),
-                maxChunkSize: parseInt(process.env.CHUNK_SIZE || '8192'),
-                chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
-                batchSize: parseInt(process.env.BATCH_SIZE || '100')
-            },
-            github: {
-                token: process.env.GITHUB_TOKEN
+        else {
+            // Self-hosted mode - require individual API keys
+            console.log('🏠 Using self-hosted mode (direct API access)');
+            const requiredEnvVars = ['PINECONE_API_KEY', 'OPENAI_API_KEY'];
+            const missingVars = requiredEnvVars.filter(name => !process.env[name]);
+            if (missingVars.length > 0) {
+                throw new ScoutError(`Missing required environment variables for self-hosted mode: ${missingVars.join(', ')}\n\n` +
+                    '🏠 **Self-hosted mode** (current):  \n' +
+                    '- PINECONE_API_KEY: Your Pinecone API key\n' +
+                    '- OPENAI_API_KEY: Your OpenAI API key\n' +
+                    'Optional variables:\n' +
+                    '- PINECONE_ENVIRONMENT: Pinecone environment (default: us-east-1)\n' +
+                    '- PINECONE_INDEX: Pinecone index name (default: scout-index)\n' +
+                    '- GITHUB_TOKEN: GitHub token for higher rate limits\n' +
+                    '- MAX_FILE_SIZE: Maximum file size in bytes (default: 1048576)\n' +
+                    '- CHUNK_SIZE: Maximum chunk size in characters (default: 8192)\n' +
+                    '- BATCH_SIZE: Processing batch size (default: 100)\n\n' +
+                    '🚀 **Or use Scout SaaS mode**:  \n' +
+                    '- SCOUT_API_KEY: Your Scout API key (scout_abc123...)\n' +
+                    '- SCOUT_PROJECT_ID: Your Scout project UUID\n' +
+                    '- SCOUT_API_URL: Scout API URL (optional, default: https://api.scout.ai)', 'CONFIG_ERROR');
             }
-        };
+            return {
+                pinecone: {
+                    apiKey: process.env.PINECONE_API_KEY,
+                    environment: process.env.PINECONE_ENVIRONMENT || 'us-east-1',
+                    indexName: process.env.PINECONE_INDEX || 'scout-index'
+                },
+                openai: {
+                    apiKey: process.env.OPENAI_API_KEY,
+                    model: process.env.OPENAI_MODEL || 'text-embedding-3-small'
+                },
+                processing: {
+                    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1048576'),
+                    maxChunkSize: parseInt(process.env.CHUNK_SIZE || '8192'),
+                    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
+                    batchSize: parseInt(process.env.BATCH_SIZE || '100')
+                },
+                github: {
+                    token: process.env.GITHUB_TOKEN
+                }
+            };
+        }
     }
     /**
-     * Initialize all services
+     * Initialize all services using factory pattern
      */
     initializeServices() {
         console.log('Initializing Scout MCP Server...');
-        this.vectorStoreService = new VectorStoreService(this.config);
-        this.embeddingService = new EmbeddingService(this.config);
+        // Use factory pattern to select appropriate services based on configuration
+        if (this.config.scout) {
+            // Scout API mode (SaaS)
+            console.log('🚀 Initializing Scout API services (SaaS mode)...');
+            this.vectorStoreService = new ScoutVectorStoreService(this.config);
+            this.embeddingService = new ScoutEmbeddingService(this.config);
+        }
+        else {
+            // Self-hosted mode (direct API access)
+            console.log('🏠 Initializing direct API services (self-hosted mode)...');
+            this.vectorStoreService = new VectorStoreService(this.config);
+            this.embeddingService = new EmbeddingService(this.config);
+        }
+        // These services are the same for both modes
         this.githubService = new GitHubService(this.config);
         this.webScrapingService = new WebScrapingService();
         this.contentProcessor = new ContentProcessor(this.config);
@@ -273,8 +317,15 @@ class ScoutMCPServer {
         try {
             console.log('Starting Scout MCP Server...');
             console.log('Environment check:');
-            console.log(`- PINECONE_API_KEY: ${process.env.PINECONE_API_KEY ? 'SET' : 'NOT SET'}`);
-            console.log(`- OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+            if (this.config.scout) {
+                console.log(`- SCOUT_API_KEY: ${process.env.SCOUT_API_KEY ? 'SET' : 'NOT SET'}`);
+                console.log(`- SCOUT_PROJECT_ID: ${process.env.SCOUT_PROJECT_ID ? 'SET' : 'NOT SET'}`);
+                console.log(`- SCOUT_API_URL: ${this.config.scout.apiUrl}`);
+            }
+            else {
+                console.log(`- PINECONE_API_KEY: ${process.env.PINECONE_API_KEY ? 'SET' : 'NOT SET'}`);
+                console.log(`- OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+            }
             // Initialize vector store
             console.log('Initializing vector store...');
             await this.vectorStoreService.initialize();
@@ -302,8 +353,16 @@ class ScoutMCPServer {
             await this.server.connect(transport);
             console.log('Scout MCP Server is running and waiting for connections...');
             console.log('Configuration:');
-            console.log(`- Pinecone Index: ${this.config.pinecone.indexName}`);
-            console.log(`- OpenAI Model: ${this.config.openai.model}`);
+            if (this.config.scout) {
+                console.log(`- Mode: Scout API (SaaS)`);
+                console.log(`- Project ID: ${this.config.scout.projectId}`);
+                console.log(`- API URL: ${this.config.scout.apiUrl}`);
+            }
+            else {
+                console.log(`- Mode: Self-hosted`);
+                console.log(`- Pinecone Index: ${this.config.pinecone.indexName}`);
+                console.log(`- OpenAI Model: ${this.config.openai.model}`);
+            }
             console.log(`- Max File Size: ${this.config.processing.maxFileSize} bytes`);
             console.log(`- Chunk Size: ${this.config.processing.maxChunkSize} chars`);
             console.log('Press Ctrl+C to stop the server');

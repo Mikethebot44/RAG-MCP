@@ -1,5 +1,5 @@
-import { ScoutConfig } from '../types/index.js';
-export declare class EmbeddingService {
+import { ScoutConfig, IEmbeddingService } from '../types/index.js';
+export declare class EmbeddingService implements IEmbeddingService {
     private openai;
     private model;
     private batchSize;

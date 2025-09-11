@@ -4,18 +4,18 @@ import {
   SearchContextInputSchema,
   SearchContextInput,
   SearchResult,
-  QueryResult
+  QueryResult,
+  IEmbeddingService,
+  IVectorStoreService
 } from '../types/index.js';
-import { EmbeddingService } from '../services/EmbeddingService.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
 
 export class SearchContextTool {
-  private embeddingService: EmbeddingService;
-  private vectorStoreService: VectorStoreService;
+  private embeddingService: IEmbeddingService;
+  private vectorStoreService: IVectorStoreService;
 
   constructor(
-    embeddingService: EmbeddingService,
-    vectorStoreService: VectorStoreService
+    embeddingService: IEmbeddingService,
+    vectorStoreService: IVectorStoreService
   ) {
     this.embeddingService = embeddingService;
     this.vectorStoreService = vectorStoreService;

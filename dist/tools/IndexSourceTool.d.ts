@@ -1,17 +1,15 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { IndexSourceInput } from '../types/index.js';
+import { IndexSourceInput, IEmbeddingService, IVectorStoreService } from '../types/index.js';
 import { GitHubService } from '../services/GitHubService.js';
 import { WebScrapingService } from '../services/WebScrapingService.js';
 import { ContentProcessor } from '../services/ContentProcessor.js';
-import { EmbeddingService } from '../services/EmbeddingService.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
 export declare class IndexSourceTool {
     private githubService;
     private webScrapingService;
     private contentProcessor;
     private embeddingService;
     private vectorStoreService;
-    constructor(githubService: GitHubService, webScrapingService: WebScrapingService, contentProcessor: ContentProcessor, embeddingService: EmbeddingService, vectorStoreService: VectorStoreService);
+    constructor(githubService: GitHubService, webScrapingService: WebScrapingService, contentProcessor: ContentProcessor, embeddingService: IEmbeddingService, vectorStoreService: IVectorStoreService);
     /**
      * Get tool definition for MCP
      */

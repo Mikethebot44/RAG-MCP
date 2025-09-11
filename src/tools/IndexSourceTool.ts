@@ -4,27 +4,27 @@ import {
   IndexSourceInputSchema,
   IndexSourceInput,
   SourceType,
-  ScoutError
+  ScoutError,
+  IEmbeddingService,
+  IVectorStoreService
 } from '../types/index.js';
 import { GitHubService } from '../services/GitHubService.js';
 import { WebScrapingService } from '../services/WebScrapingService.js';
 import { ContentProcessor } from '../services/ContentProcessor.js';
-import { EmbeddingService } from '../services/EmbeddingService.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
 
 export class IndexSourceTool {
   private githubService: GitHubService;
   private webScrapingService: WebScrapingService;
   private contentProcessor: ContentProcessor;
-  private embeddingService: EmbeddingService;
-  private vectorStoreService: VectorStoreService;
+  private embeddingService: IEmbeddingService;
+  private vectorStoreService: IVectorStoreService;
 
   constructor(
     githubService: GitHubService,
     webScrapingService: WebScrapingService,
     contentProcessor: ContentProcessor,
-    embeddingService: EmbeddingService,
-    vectorStoreService: VectorStoreService
+    embeddingService: IEmbeddingService,
+    vectorStoreService: IVectorStoreService
   ) {
     this.githubService = githubService;
     this.webScrapingService = webScrapingService;

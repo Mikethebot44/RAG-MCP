@@ -83,12 +83,17 @@ export interface QueryResult {
     metadata: Vector['metadata'];
 }
 export interface ScoutConfig {
-    pinecone: {
+    scout?: {
+        apiKey: string;
+        projectId: string;
+        apiUrl?: string;
+    };
+    pinecone?: {
         apiKey: string;
         environment: string;
         indexName: string;
     };
-    openai: {
+    openai?: {
         apiKey: string;
         model?: string;
     };
@@ -185,6 +190,36 @@ export interface SearchResult {
         headingLevel?: number;
     };
     score: number;
+}
+export interface IVectorStoreService {
+    initialize(): Promise<void>;
+    upsertVectors(vectors: Vector[]): Promise<void>;
+    queryVectors(vector: number[], options?: {
+        topK?: number;
+        filter?: Record<string, any>;
+        threshold?: number;
+        includeMetadata?: boolean;
+    }): Promise<QueryResult[]>;
+    deleteVectors(ids: string[]): Promise<void>;
+    deleteByFilter(filter: Record<string, any>): Promise<void>;
+    getIndexStats(): Promise<{
+        totalVectors: number;
+        dimension: number;
+        indexFullness: number;
+    }>;
+    listSources(): Promise<string[]>;
+    healthCheck(): Promise<boolean>;
+}
+export interface IEmbeddingService {
+    generateEmbedding(text: string): Promise<number[]>;
+    generateEmbeddings(texts: string[]): Promise<number[][]>;
+    generateQueryEmbedding(query: string): Promise<number[]>;
+    healthCheck(): Promise<boolean>;
+    getModelInfo(): {
+        model: string;
+        dimensions: number;
+        maxTokens: number;
+    };
 }
 export declare class ScoutError extends Error {
     code: string;

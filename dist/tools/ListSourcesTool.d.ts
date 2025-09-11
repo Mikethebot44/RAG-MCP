@@ -1,11 +1,10 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { SourceInfo } from '../types/index.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
+import { SourceInfo, IVectorStoreService } from '../types/index.js';
 export declare class ListSourcesTool {
     private vectorStoreService;
     private sourceCache;
     private cacheExpiry;
-    constructor(vectorStoreService: VectorStoreService);
+    constructor(vectorStoreService: IVectorStoreService);
     /**
      * Get tool definition for MCP
      */

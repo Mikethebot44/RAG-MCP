@@ -4,11 +4,15 @@
   "description": "Scout MCP server for enhanced coding context via vector search and RAG",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "scout-mcp": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "test": "npm run build && node dist/index.js"
+    "test": "npm run build && node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -17,15 +21,36 @@
     "vector-search",
     "ai",
     "coding-assistant",
-    "context"
+    "context",
+    "cli",
+    "npx"
   ],
   "author": "Terragon Labs",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/terragon-labs/scout-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/terragon-labs/scout-mcp/issues"
+  },
+  "homepage": "https://github.com/terragon-labs/scout-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "preferGlobal": true,
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@mozilla/readability": "^0.5.0",
     "@octokit/rest": "^21.0.2",
     "@pinecone-database/pinecone": "^3.0.3",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
     "dotenv": "^17.2.2",
     "jsdom": "^25.0.1",
     "openai": "^4.67.3",
@@ -35,6 +60,6 @@
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.7.5",
-    "typescript": "^5.6.3"
+    "typescript": "^5.9.2"
   }
 }

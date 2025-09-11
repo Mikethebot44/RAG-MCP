@@ -1,5 +1,5 @@
-import { Vector, QueryResult, ScoutConfig } from '../types/index.js';
-export declare class VectorStoreService {
+import { Vector, QueryResult, ScoutConfig, IVectorStoreService } from '../types/index.js';
+export declare class VectorStoreService implements IVectorStoreService {
     private pinecone;
     private indexName;
     private batchSize;

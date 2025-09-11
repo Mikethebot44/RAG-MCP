@@ -73,12 +73,11 @@ If automatic creation fails, create the index manually in your Pinecone console:
 
 ### Installation
 
-1. **Clone and build**:
+#### Option 1: Global Installation with npm (Recommended)
+
+1. **Install globally**:
    ```bash
-   git clone <repository-url>
-   cd scout-mcp
-   npm install
-   npm run build
+   npm install -g scout-mcp
    ```
 
 2. **Set environment variables**:
@@ -95,13 +94,25 @@ If automatic creation fails, create the index manually in your Pinecone console:
    export CHUNK_SIZE="8192"                 # Default chunk size
    ```
 
-3. **Configure Claude Desktop** (add to your MCP settings):
+3. **Quick setup check**:
+   ```bash
+   # Setup guide
+   npx scout-mcp init
+   
+   # Health check
+   npx scout-mcp health
+   
+   # Start server
+   npx scout-mcp start
+   ```
+
+4. **Configure Claude Desktop** (add to your MCP settings):
    ```json
    {
      "mcpServers": {
-       "scout": {
-         "command": "node",
-         "args": ["/path/to/scout-mcp/dist/index.js"],
+       "scout-mcp": {
+         "command": "npx",
+         "args": ["scout-mcp", "start"],
          "env": {
            "PINECONE_API_KEY": "${PINECONE_API_KEY}",
            "OPENAI_API_KEY": "${OPENAI_API_KEY}",
@@ -110,6 +121,32 @@ If automatic creation fails, create the index manually in your Pinecone console:
        }
      }
    }
+   ```
+
+#### Option 2: Run with npx (No Installation)
+
+```bash
+# Set environment variables first
+export PINECONE_API_KEY="your_pinecone_key"
+export OPENAI_API_KEY="your_openai_key"
+
+# Run directly
+npx scout-mcp start
+```
+
+#### Option 3: Manual Installation (Development)
+
+1. **Clone and build**:
+   ```bash
+   git clone <repository-url>
+   cd scout-mcp
+   npm install
+   npm run build
+   ```
+
+2. **Run locally**:
+   ```bash
+   npm start
    ```
 
 ### First Startup
@@ -134,6 +171,32 @@ If automatic creation fails, create the index manually in your Pinecone console:
    - You can start using `index_source`, `search_context`, etc.
 
 **If startup fails**, check the error message against the Troubleshooting section below.
+
+## CLI Commands
+
+Once installed, Scout MCP provides several helpful CLI commands:
+
+```bash
+# Get setup instructions and configuration help
+npx scout-mcp init
+
+# Check environment variables and configuration
+npx scout-mcp health
+
+# Start the MCP server
+npx scout-mcp start
+
+# Start with verbose logging
+npx scout-mcp start --verbose
+
+# Show version information
+npx scout-mcp version
+
+# Show help
+npx scout-mcp --help
+```
+
+The `init` command provides a complete setup guide including environment variable configuration and Claude Desktop integration instructions.
 
 ## Available Tools
 

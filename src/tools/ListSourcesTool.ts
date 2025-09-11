@@ -1,18 +1,17 @@
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { SourceInfo } from '../types/index.js';
-import { VectorStoreService } from '../services/VectorStoreService.js';
+import { SourceInfo, IVectorStoreService } from '../types/index.js';
 import { createHash } from 'crypto'
 
 // Input schema for ListSources (no parameters needed)
 const ListSourcesInputSchema = z.object({});
 
 export class ListSourcesTool {
-  private vectorStoreService: VectorStoreService;
+  private vectorStoreService: IVectorStoreService;
   private sourceCache: Map<string, SourceInfo> = new Map();
   private cacheExpiry: number = 5 * 60 * 1000; // 5 minutes
 
-  constructor(vectorStoreService: VectorStoreService) {
+  constructor(vectorStoreService: IVectorStoreService) {
     this.vectorStoreService = vectorStoreService;
   }
 

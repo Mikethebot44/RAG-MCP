@@ -1,12 +1,16 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { Vector, QueryResult, VectorStoreError, ScoutConfig } from '../types/index.js';
+import { Vector, QueryResult, VectorStoreError, ScoutConfig, IVectorStoreService } from '../types/index.js';
 
-export class VectorStoreService {
+export class VectorStoreService implements IVectorStoreService {
   private pinecone: Pinecone;
   private indexName: string;
   private batchSize: number;
 
   constructor(config: ScoutConfig) {
+    if (!config.pinecone) {
+      throw new VectorStoreError('Pinecone configuration is required for VectorStoreService (self-hosted mode)');
+    }
+    
     this.pinecone = new Pinecone({
       apiKey: config.pinecone.apiKey
     });

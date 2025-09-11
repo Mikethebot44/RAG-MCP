@@ -1,23 +1,22 @@
-import OpenAI from 'openai';
 import { EmbeddingError, ScoutConfig, IEmbeddingService } from '../types/index.js';
 
-export class EmbeddingService implements IEmbeddingService {
-  private openai: OpenAI;
-  private model: string;
+export class ScoutEmbeddingService implements IEmbeddingService {
+  private scoutConfig: NonNullable<ScoutConfig['scout']>;
+  private apiUrl: string;
   private batchSize: number;
   private rateLimitDelay: number;
+  private model: string;
 
   constructor(config: ScoutConfig) {
-    if (!config.openai) {
-      throw new EmbeddingError('OpenAI configuration is required for EmbeddingService (self-hosted mode)');
+    if (!config.scout) {
+      throw new EmbeddingError('Scout configuration is required for ScoutEmbeddingService');
     }
-    
-    this.openai = new OpenAI({
-      apiKey: config.openai.apiKey
-    });
-    this.model = config.openai.model || 'text-embedding-3-small';
+
+    this.scoutConfig = config.scout;
+    this.apiUrl = config.scout.apiUrl || 'https://api.scout.ai';
     this.batchSize = Math.min(config.processing.batchSize, 100); // OpenAI allows max 100 per request
     this.rateLimitDelay = 100; // 100ms between requests to respect rate limits
+    this.model = config.openai?.model || 'text-embedding-3-small';
   }
 
   /**
@@ -29,32 +28,46 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     try {
-      const response = await this.openai.embeddings.create({
-        model: this.model,
-        input: this.preprocessText(text),
-        encoding_format: 'float'
+      const response = await fetch(`${this.apiUrl}/api/scout/embeddings?projectId=${this.scoutConfig.projectId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.scoutConfig.apiKey}`
+        },
+        body: JSON.stringify({
+          input: this.preprocessText(text),
+          model: this.model,
+          encoding_format: 'float'
+        })
       });
 
-      if (!response.data || response.data.length === 0) {
-        throw new EmbeddingError('No embedding data received from OpenAI');
-      }
-
-      return response.data[0].embedding;
-    } catch (error) {
-      if (error instanceof OpenAI.APIError) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         throw new EmbeddingError(
-          `OpenAI API error: ${error.message}`,
+          `Scout API error: ${response.status} ${response.statusText}`,
           { 
-            status: error.status,
-            code: error.code,
-            type: error.type,
+            status: response.status,
+            statusText: response.statusText,
+            errorData,
             textLength: text.length
           }
         );
       }
-      
+
+      const data = await response.json();
+
+      if (!data.data || data.data.length === 0) {
+        throw new EmbeddingError('No embedding data received from Scout API');
+      }
+
+      return data.data[0].embedding;
+    } catch (error) {
+      if (error instanceof EmbeddingError) {
+        throw error;
+      }
+
       throw new EmbeddingError(
-        `Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to generate embedding via Scout API: ${error instanceof Error ? error.message : 'Unknown error'}`,
         { textLength: text.length, error }
       );
     }
@@ -89,25 +102,49 @@ export class EmbeddingService implements IEmbeddingService {
       
       try {
         const batchTexts = batch.map(item => item.text);
-        const response = await this.openai.embeddings.create({
-          model: this.model,
-          input: batchTexts,
-          encoding_format: 'float'
+        
+        const response = await fetch(`${this.apiUrl}/api/scout/embeddings?projectId=${this.scoutConfig.projectId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.scoutConfig.apiKey}`
+          },
+          body: JSON.stringify({
+            input: batchTexts,
+            model: this.model,
+            encoding_format: 'float'
+          })
         });
 
-        if (!response.data || response.data.length !== batch.length) {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
           throw new EmbeddingError(
-            `Expected ${batch.length} embeddings but received ${response.data?.length || 0}`
+            `Scout API error in batch ${i + 1}: ${response.status} ${response.statusText}`,
+            { 
+              batchIndex: i,
+              batchSize: batch.length,
+              status: response.status,
+              statusText: response.statusText,
+              errorData
+            }
+          );
+        }
+
+        const data = await response.json();
+
+        if (!data.data || data.data.length !== batch.length) {
+          throw new EmbeddingError(
+            `Expected ${batch.length} embeddings but received ${data.data?.length || 0}`
           );
         }
 
         // Map results back to original indices
-        response.data.forEach((embedding, batchIndex) => {
+        data.data.forEach((embedding: any, batchIndex: number) => {
           const originalIndex = batch[batchIndex].originalIndex;
           results[originalIndex] = embedding.embedding;
         });
 
-        console.log(`Generated embeddings for batch ${i + 1}/${batches.length} (${batch.length} texts)`);
+        console.log(`Generated embeddings for batch ${i + 1}/${batches.length} (${batch.length} texts) via Scout API`);
 
         // Rate limiting delay
         if (i < batches.length - 1) {
@@ -115,21 +152,12 @@ export class EmbeddingService implements IEmbeddingService {
         }
 
       } catch (error) {
-        if (error instanceof OpenAI.APIError) {
-          throw new EmbeddingError(
-            `OpenAI API error in batch ${i + 1}: ${error.message}`,
-            { 
-              batchIndex: i,
-              batchSize: batch.length,
-              status: error.status,
-              code: error.code,
-              type: error.type
-            }
-          );
+        if (error instanceof EmbeddingError) {
+          throw error;
         }
         
         throw new EmbeddingError(
-          `Failed to generate embeddings for batch ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Failed to generate embeddings for batch ${i + 1} via Scout API: ${error instanceof Error ? error.message : 'Unknown error'}`,
           { batchIndex: i, batchSize: batch.length, error }
         );
       }
@@ -232,7 +260,7 @@ export class EmbeddingService implements IEmbeddingService {
       await this.generateEmbedding('test');
       return true;
     } catch (error) {
-      console.error('Embedding service health check failed:', error);
+      console.error('Scout embedding service health check failed:', error);
       return false;
     }
   }
