@@ -73,7 +73,7 @@ class ScoutMCPServer {
         scout: {
           apiKey: process.env.SCOUT_API_KEY!,
           projectId: process.env.SCOUT_PROJECT_ID!,
-          apiUrl: process.env.SCOUT_API_URL || 'https://api.scout.ai'
+          apiUrl: process.env.SCOUT_API_URL || 'https://scout-mauve-nine.vercel.app'
         },
         processing: {
           maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1048576'),
