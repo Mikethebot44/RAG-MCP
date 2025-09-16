@@ -8,16 +8,13 @@ export class ScoutEmbeddingService implements IEmbeddingService {
   private model: string;
 
   constructor(config: ScoutConfig) {
-    if (!config.scout) {
-      throw new EmbeddingError('Scout configuration is required for ScoutEmbeddingService');
-    }
-
     this.scoutConfig = config.scout;
     this.apiUrl = config.scout.apiUrl || 'https://api.scout.ai';
-    this.batchSize = Math.min(config.processing.batchSize, 100); // OpenAI allows max 100 per request
-    this.rateLimitDelay = 100; // 100ms between requests to respect rate limits
-    this.model = config.openai?.model || 'text-embedding-3-small';
+    this.batchSize = Math.min(config.processing.batchSize, 100);
+    this.rateLimitDelay = 100;
+    this.model = 'text-embedding-3-small';
   }
+
 
   /**
    * Generate embeddings for a single text

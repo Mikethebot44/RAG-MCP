@@ -1,401 +1,169 @@
 # Scout MCP Server
 
-An open-source Model Context Protocol (MCP) server that provides RAG-enhanced context to coding agents via vector search. Built as an alternative to proprietary solutions, Scout gives developers control over their vector storage and indexing.
+Scout MCP is an open-source Model Context Protocol (MCP) server that connects coding agents to your Scout project for Retrieval Augmented Generation (RAG). It handles source ingestion, chunking, embeddings, and vector search by delegating storage and compute to the Scout API.
 
 ## Features
 
-- **Universal Source Indexing**: Index both GitHub repositories and documentation websites
-- **Vector Search**: Semantic search using OpenAI embeddings and Pinecone vector database
-- **User-Controlled Storage**: Use your own Pinecone API keys for complete data control
-- **Smart Content Processing**: Intelligent chunking for code and documentation
-- **MCP Integration**: Works seamlessly with Claude Desktop, Cursor, and other MCP-compatible tools
+- **Scout-Native Vector Search**: All indexing and search operations run through the Scout API using your project credentials
+- **Universal Source Indexing**: Index GitHub repositories and documentation websites with a single command
+- **Smart Content Processing**: Language-aware chunking with configurable sizes, overlaps, and batching
+- **MCP Integration**: Works out of the box with Claude Desktop, Cursor, and any other MCP-compatible client
+- **CLI Utilities**: Guided setup, environment validation, and server management commands
 
 ## Architecture
 
-- **Language**: TypeScript with ESM modules
-- **Vector Database**: Pinecone (user-provided API keys)
-- **Embeddings**: OpenAI text-embedding-3-small
-- **Content Sources**: GitHub API + Web scraping (no local cloning required)
-- **Transport**: STDIO for MCP client integration
+- **Language**: TypeScript (ESM modules)
+- **Embeddings & Vector Store**: Managed by the Scout API for your configured project
+- **Content Sources**: GitHub REST API and HTML scraping via Playwright + Readability
+- **Transport**: STDIO for MCP communication, optional HTTP mode for local testing
 
 ## Quick Start
 
 ### Prerequisites
 
-You need API keys for:
-- **Pinecone**: For vector storage ([Get API key](https://www.pinecone.io/))
-- **OpenAI**: For text embeddings ([Get API key](https://platform.openai.com/api-keys))
-- **GitHub Token** (optional): For higher rate limits ([Create token](https://github.com/settings/tokens))
+You need the following before running the server:
 
-### Pinecone Setup
+- **SCOUT_API_KEY** - personal API key from your Scout account
+- **SCOUT_PROJECT_ID** - UUID for the Scout project you want to populate
+- **GITHUB_TOKEN** (optional) - increases GitHub rate limits when indexing repositories
 
-The server will **automatically create** a Pinecone index if it doesn't exist, but this can fail due to plan limitations. Here are both approaches:
-
-#### Option 1: Automatic Index Creation (Recommended)
-The server will attempt to create an index named `scout-index` (or your custom name) **automatically at startup**.
-
-**When it happens**: 
-- ⏰ **At MCP server startup** (not during build/install)
-- 🔄 **First time the server runs** with your API key
-- ⏳ **Takes 1-2 minutes** for Pinecone to provision the index
-
-**Index specifications**:
-- **Dimensions**: 1536 (for text-embedding-3-small)
-- **Metric**: cosine
-- **Environment**: Starter pod on GCP
-
-**Requirements**:
-- Pinecone Starter plan or higher (free tier has limitations)
-- API key with index creation permissions
-- Available index quota on your account
-
-**What you'll see**:
-```
-Starting Scout MCP Server...
-Vector store initialized  ← Index created here
-All services passed health checks
-Scout MCP Server is running
-```
-
-#### Option 2: Manual Index Creation (Backup)
-If automatic creation fails, create the index manually in your Pinecone console:
-
-1. Go to [Pinecone Console](https://app.pinecone.io/)
-2. Click "Create Index"
-3. Set these values:
-   - **Name**: `scout-index` (or match your `PINECONE_INDEX` env var)
-   - **Dimensions**: `1536`
-   - **Metric**: `cosine`
-   - **Pod Type**: `s1.x1` (Starter) or higher
-4. Wait for index to be ready (usually 1-2 minutes)
-
-**Index Name**: Make sure the index name matches your `PINECONE_INDEX` environment variable (defaults to `scout-index`).
+> Need an API key? Visit your Scout dashboard and create one, then copy the project ID from the project settings page.
 
 ### Installation
 
-#### Option 1: Global Installation with npm (Recommended)
-
-1. **Install globally**:
-   ```bash
-   npm install -g scout-mcp
-   ```
-
-2. **Set environment variables**:
-   ```bash
-   # Required
-   export PINECONE_API_KEY="your_pinecone_key"
-   export OPENAI_API_KEY="your_openai_key"
-   
-   # Optional
-   export PINECONE_ENVIRONMENT="us-east-1"  # Default
-   export PINECONE_INDEX="scout-index"    # Default
-   export GITHUB_TOKEN="your_github_token"  # For higher rate limits
-   export MAX_FILE_SIZE="1048576"           # 1MB default
-   export CHUNK_SIZE="8192"                 # Default chunk size
-   ```
-
-3. **Quick setup check**:
-   ```bash
-   # Setup guide
-   npx scout-mcp init
-   
-   # Health check
-   npx scout-mcp health
-   
-   # Start server
-   npx scout-mcp start
-   ```
-
-4. **Configure Claude Desktop** (add to your MCP settings):
-   ```json
-   {
-     "mcpServers": {
-       "scout-mcp": {
-         "command": "npx",
-         "args": ["scout-mcp", "start"],
-         "env": {
-           "PINECONE_API_KEY": "${PINECONE_API_KEY}",
-           "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-           "GITHUB_TOKEN": "${GITHUB_TOKEN}"
-         }
-       }
-     }
-   }
-   ```
-
-#### Option 2: Run with npx (No Installation)
-
 ```bash
-# Set environment variables first
-export PINECONE_API_KEY="your_pinecone_key"
-export OPENAI_API_KEY="your_openai_key"
+# Install globally (recommended)
+npm install -g scout-mcp
 
-# Run directly
+# Or run on demand without installing
 npx scout-mcp start
 ```
 
-#### Option 3: Manual Installation (Development)
+### Configure Environment Variables
 
-1. **Clone and build**:
-   ```bash
-   git clone <repository-url>
-   cd scout-mcp
-   npm install
-   npm run build
-   ```
+Set these variables in your shell, .env file, or MCP client configuration:
 
-2. **Run locally**:
-   ```bash
-   npm start
-   ```
+```bash
+# Required
+export SCOUT_API_KEY="scout_xxx"
+export SCOUT_PROJECT_ID="00000000-0000-0000-0000-000000000000"
 
-### First Startup
+# Optional
+export SCOUT_API_URL="https://api.scout.ai"    # Override the default base URL
+export GITHUB_TOKEN="ghp_xxx"                  # GitHub API token
+export MAX_FILE_SIZE="1048576"                 # Bytes, default 1 MB
+export CHUNK_SIZE="8192"                       # Characters per chunk
+export CHUNK_OVERLAP="200"                     # Character overlap between chunks
+export BATCH_SIZE="100"                        # Batch size for embeddings/upserts
+```
 
-**What happens when the server starts for the first time:**
+### Start the Server
 
-1. **Server Initialization** (instant)
-   - Loads configuration from environment variables
-   - Validates API keys are present
+```bash
+# One-time setup guidance
+npx scout-mcp init
 
-2. **Pinecone Index Creation** (1-2 minutes)
-   - Automatically creates `scout-index` if it doesn't exist
-   - Waits for index to be ready for operations
-   - ⚠️ **This is when creation might fail** (see troubleshooting if issues occur)
+# Verify configuration
+npx scout-mcp health
 
-3. **Service Health Checks** (few seconds)
-   - Tests connections to Pinecone, OpenAI, and GitHub
-   - Reports any service issues
+# Launch the MCP server (STDIO mode)
+npx scout-mcp start
 
-4. **Ready for Requests** 
-   - Server is now ready to accept MCP tool calls
-   - You can start using `index_source`, `search_context`, etc.
+# Launch with verbose logging or HTTP mode if needed
+npx scout-mcp start --verbose
+npx scout-mcp start --http --port 3333
+```
 
-**If startup fails**, check the error message against the Troubleshooting section below.
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "scout-mcp": {
+      "command": "npx",
+      "args": ["scout-mcp", "start"],
+      "env": {
+        "SCOUT_API_KEY": "${SCOUT_API_KEY}",
+        "SCOUT_PROJECT_ID": "${SCOUT_PROJECT_ID}",
+        "SCOUT_API_URL": "${SCOUT_API_URL}",
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
 
 ## CLI Commands
 
-Once installed, Scout MCP provides several helpful CLI commands:
+| Command | Description |
+| --- | --- |
+| `npx scout-mcp init` | Print setup instructions and Claude configuration snippet |
+| `npx scout-mcp health` | Validate required/optional environment variables |
+| `npx scout-mcp start` | Start the MCP server (STDIO by default) |
+| `npx scout-mcp start --http` | Start an HTTP server for local testing |
+| `npx scout-mcp start --verbose` | Enable verbose logging |
+| `npx scout-mcp version` | Display version and runtime info |
 
-```bash
-# Get setup instructions and configuration help
-npx scout-mcp init
+## MCP Tools
 
-# Check environment variables and configuration
-npx scout-mcp health
+The server exposes four MCP tools when connected to a client:
 
-# Start the MCP server
-npx scout-mcp start
+- **`index_source`** - Ingest a GitHub repository or documentation site and push processed chunks to Scout
+- **`search_context`** - Perform similarity search against indexed content to retrieve relevant context snippets
+- **`list_sources`** - Enumerate sources that have been indexed in the current Scout project
+- **`delete_source`** - Remove an indexed source by ID
 
-# Start with verbose logging
-npx scout-mcp start --verbose
+Each tool automatically delegates vector storage, updates, and queries to the Scout API based on the provided `SCOUT_PROJECT_ID`.
 
-# Show version information
-npx scout-mcp version
-
-# Show help
-npx scout-mcp --help
-```
-
-The `init` command provides a complete setup guide including environment variable configuration and Claude Desktop integration instructions.
-
-## Available Tools
-
-### 1. `index_source`
-Index a GitHub repository or documentation website for RAG search.
-
-**Parameters**:
-- `url` (required): GitHub repository URL or documentation URL
-- `sourceType`: "auto", "github", or "documentation" (auto-detects by default)
-- `branch`: Git branch for GitHub repos (default: "main")
-- `includePatterns`: File patterns to include (e.g., ["*.ts", "*.js"])
-- `excludePatterns`: File patterns to exclude (e.g., ["node_modules/**"])
-- `maxFileSize`: Maximum file size in bytes (default: 1MB)
-- `maxDepth`: Maximum crawl depth for documentation (default: 3)
-- `onlyMainContent`: Extract only main content for docs (default: true)
-
-**Examples**:
-```javascript
-// Index a GitHub repository
-index_source({
-  url: "https://github.com/facebook/react",
-  includePatterns: ["*.ts", "*.tsx", "*.js", "*.jsx"],
-  excludePatterns: ["**/*.test.*", "**/node_modules/**"]
-})
-
-// Index documentation
-index_source({
-  url: "https://docs.stripe.com",
-  maxDepth: 4
-})
-```
-
-### 2. `search_context`
-Search indexed sources for relevant context based on a query.
-
-**Parameters**:
-- `query` (required): Search query for finding relevant context
-- `maxResults`: Maximum number of results (default: 10)
-- `sources`: Filter by specific source URLs/IDs
-- `includeCode`: Include code snippets in results (default: true)
-- `includeDoc`: Include documentation in results (default: true)
-- `threshold`: Similarity threshold 0-1 (default: 0.7)
-
-**Example**:
-```javascript
-search_context({
-  query: "How to handle authentication with hooks?",
-  maxResults: 5,
-  threshold: 0.8
-})
-```
-
-### 3. `list_sources`
-List all indexed sources with metadata and statistics.
-
-**Example**:
-```javascript
-list_sources({})
-```
-
-### 4. `delete_source`
-Delete an indexed source and all its associated chunks.
-
-**Parameters**:
-- `sourceId` (required): ID of the source to delete (from `list_sources`)
-
-**Example**:
-```javascript
-delete_source({
-  sourceId: "abc123def456"
-})
-```
-
-## How It Works
-
-1. **Content Acquisition**:
-   - GitHub repos: Uses GitHub API (no cloning required)
-   - Documentation: Web scraping with content extraction
-
-2. **Intelligent Chunking**:
-   - Code files: Respects function/class boundaries
-   - Documentation: Chunks by headings and sections
-   - Maintains context with overlapping chunks
-
-3. **Vector Storage**:
-   - Generates embeddings using OpenAI text-embedding-3-small
-   - Stores in Pinecone with rich metadata for filtering
-   - Enables semantic search with similarity scoring
-
-4. **Search & Retrieval**:
-   - Query embedding generation
-   - Vector similarity search with filtering
-   - Result ranking and diversification
-
-## Configuration
-
-### Environment Variables
+## Environment Variable Reference
 
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PINECONE_API_KEY` | ✅ | - | Your Pinecone API key |
-| `OPENAI_API_KEY` | ✅ | - | Your OpenAI API key |
-| `PINECONE_ENVIRONMENT` | ❌ | us-east-1 | Pinecone environment |
-| `PINECONE_INDEX` | ❌ | scout-index | Pinecone index name |
-| `GITHUB_TOKEN` | ❌ | - | GitHub token for higher rate limits |
-| `MAX_FILE_SIZE` | ❌ | 1048576 | Max file size in bytes (1MB) |
-| `CHUNK_SIZE` | ❌ | 8192 | Max chunk size in characters |
-| `CHUNK_OVERLAP` | ❌ | 200 | Overlap between chunks |
-| `BATCH_SIZE` | ❌ | 100 | Processing batch size |
+| --- | --- | --- | --- |
+| `SCOUT_API_KEY` | Yes | - | Scout API key used for authentication |
+| `SCOUT_PROJECT_ID` | Yes | - | Target Scout project UUID |
+| `SCOUT_API_URL` | No | `https://scout-mauve-nine.vercel.app` | Override base URL for self-hosted Scout deployments |
+| `GITHUB_TOKEN` | No | - | GitHub token for higher rate limits |
+| `MAX_FILE_SIZE` | No | `1048576` | Maximum file size to download (bytes) |
+| `CHUNK_SIZE` | No | `8192` | Maximum characters per chunk |
+| `CHUNK_OVERLAP` | No | `200` | Overlap between consecutive chunks |
+| `BATCH_SIZE` | No | `100` | Batch size for embedding generation and upserts |
 
-### Supported URL Formats
+## Project Structure
 
-**GitHub repositories**:
-- `https://github.com/facebook/react`
-- `https://github.com/microsoft/typescript`
-- `https://github.com/vercel/next.js/tree/canary/packages/next`
-
-**Documentation sites**:
-- `https://docs.stripe.com`
-- `https://nextjs.org/docs`
-- `https://react.dev/learn`
-
-## Development
-
-### Project Structure
 ```
 src/
-├── types/index.ts              # TypeScript interfaces
-├── services/
-│   ├── VectorStoreService.ts   # Pinecone integration
-│   ├── EmbeddingService.ts     # OpenAI embeddings
-│   ├── GitHubService.ts        # GitHub API client
-│   ├── WebScrapingService.ts   # Documentation scraping
-│   └── ContentProcessor.ts     # Content chunking
-├── tools/
-│   ├── IndexSourceTool.ts      # Universal indexing
-│   ├── SearchContextTool.ts    # Vector search
-│   ├── ListSourcesTool.ts      # List indexed sources
-│   └── DeleteSourceTool.ts     # Remove sources
-└── index.ts                    # MCP server entry point
-```
-
-### Building and Testing
-```bash
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
-
-# Run the server (for testing)
-npm start
-
-# Test with MCP Inspector (optional)
-npx @modelcontextprotocol/inspector dist/index.js
+|- cli.ts                    # Command line interface (init, health, start)
+|- index.ts                  # STDIO entry point for MCP clients
+|- server.ts                 # Shared server logic (STDIO/HTTP)
+|- services/
+|  |- ScoutVectorStoreService.ts  # Vector operations via Scout API
+|  |- ScoutEmbeddingService.ts    # Embedding operations via Scout API
+|  |- ContentProcessor.ts         # Chunking and metadata extraction
+|  |- GitHubService.ts            # GitHub fetching utilities
+|  |- WebScrapingService.ts       # Documentation crawler using Playwright
+|- tools/                        # MCP tool implementations
+|- types/                        # Shared types and schemas
 ```
 
 ## Troubleshooting
 
-### Common Issues
+| Issue | What to check |
+| --- | --- |
+| `Missing required environment variables` | Ensure `SCOUT_API_KEY` and `SCOUT_PROJECT_ID` are exported or set in your MCP client configuration |
+| `401 Unauthorized` errors from Scout | Confirm the API key has access to the project ID you configured |
+| Indexing succeeds but search returns nothing | Verify the project in the Scout dashboard to confirm documents were added and embeddings completed |
+| GitHub rate limits reached | Supply `GITHUB_TOKEN` or retry after the limit resets |
 
-1. **"Missing required environment variables"**
-   - Ensure `PINECONE_API_KEY` and `OPENAI_API_KEY` are set
-   - Check variable names for typos
-
-2. **"Failed to initialize Pinecone index"**
-   - **API Key Issues**: Verify your Pinecone API key is valid and has permissions
-   - **Plan Limitations**: Free tier users may need to upgrade to Starter plan for index creation
-   - **Index Quota**: Check if you've reached your plan's index limit (free tier: 1 index, starter: 5 indexes)
-   - **Existing Index**: If index exists with different dimensions (not 1536), delete it or use a different name
-   - **Manual Creation**: Create the index manually in Pinecone console (see Pinecone Setup section)
-   - **Environment Mismatch**: Ensure your Pinecone environment matches (defaults to us-east-1)
-   
-   **Common Error Messages**:
-   - `"Index already exists"`: Use existing index or change `PINECONE_INDEX` name
-   - `"Quota exceeded"`: Delete unused indexes or upgrade your Pinecone plan  
-   - `"Invalid dimensions"`: Existing index has wrong dimensions, create with 1536
-   - `"Environment not found"`: Check your `PINECONE_ENVIRONMENT` setting
-
-3. **"GitHub rate limit exceeded"**
-   - Add a `GITHUB_TOKEN` environment variable
-   - Use personal access token for higher limits
-
-4. **"No content found to index"**
-   - Check URL accessibility
-   - Verify include/exclude patterns
-   - Ensure repository has supported file types
-
-### Performance Tips
-
-- Use `includePatterns` to focus on relevant files
-- Set appropriate `maxFileSize` limits for large repositories
-- Monitor Pinecone usage for cost control
-- Use GitHub token for higher rate limits
+Enable verbose logging with `npx scout-mcp start --verbose` to see health-check results and Scout API responses.
 
 ## Contributing
 
-This is an open-source project. Contributions are welcome!
+1. Fork the repository and clone locally
+2. Install dependencies with `npm install`
+3. Make your changes in `src/`
+4. Run `npm run build` to compile TypeScript
+5. Open a pull request describing your changes
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT (c) Terragon Labs

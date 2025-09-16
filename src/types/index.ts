@@ -101,22 +101,11 @@ export interface QueryResult {
 
 // Configuration types
 export interface ScoutConfig {
-  // Scout API configuration (SaaS mode)
-  scout?: {
+  // Scout API configuration (required)
+  scout: {
     apiKey: string;      // Scout API key (scout_abc123...)
     projectId: string;   // UUID of user's project
     apiUrl?: string;     // Default: https://api.scout.ai
-  };
-  
-  // Direct API configuration (self-hosted mode)
-  pinecone?: {
-    apiKey: string;
-    environment: string;
-    indexName: string;
-  };
-  openai?: {
-    apiKey: string;
-    model?: string;
   };
   
   // Processing configuration (always required)

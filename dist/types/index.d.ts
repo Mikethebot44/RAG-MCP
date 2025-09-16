@@ -83,19 +83,10 @@ export interface QueryResult {
     metadata: Vector['metadata'];
 }
 export interface ScoutConfig {
-    scout?: {
+    scout: {
         apiKey: string;
         projectId: string;
         apiUrl?: string;
-    };
-    pinecone?: {
-        apiKey: string;
-        environment: string;
-        indexName: string;
-    };
-    openai?: {
-        apiKey: string;
-        model?: string;
     };
     processing: {
         maxFileSize: number;
