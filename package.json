@@ -1,6 +1,6 @@
 {
   "name": "scout-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Scout MCP server for enhanced coding context via vector search and RAG",
   "main": "dist/index.js",
   "type": "module",

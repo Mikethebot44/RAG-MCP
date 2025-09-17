@@ -53,7 +53,8 @@ export class ScoutVectorStoreService implements IVectorStoreService {
               'Authorization': `Bearer ${this.scoutConfig.apiKey}`
             },
             body: JSON.stringify({
-              vectors: batch
+              vectors: batch,
+              namespace: 'documents'
             })
           });
 
@@ -125,7 +126,8 @@ export class ScoutVectorStoreService implements IVectorStoreService {
           topK,
           filter,
           includeMetadata,
-          includeValues: false
+          includeValues: false,
+          namespace: 'documents'
         })
       });
 
@@ -189,7 +191,8 @@ export class ScoutVectorStoreService implements IVectorStoreService {
             'Authorization': `Bearer ${this.scoutConfig.apiKey}`
           },
           body: JSON.stringify({
-            ids: batch
+            ids: batch,
+            namespace: 'documents'
           })
         });
 
@@ -230,7 +233,8 @@ export class ScoutVectorStoreService implements IVectorStoreService {
           'Authorization': `Bearer ${this.scoutConfig.apiKey}`
         },
         body: JSON.stringify({
-          filter
+          filter,
+          namespace: 'documents'
         })
       });
 
@@ -321,6 +325,52 @@ export class ScoutVectorStoreService implements IVectorStoreService {
         { error }
       );
     }
+  }
+
+  /**
+   * Create a document record via Scout API so it appears in dashboard
+   */
+  async createDocument(params: { name: string; type: 'github' | 'documentation' | 'local'; source_url: string; source_metadata?: any }): Promise<{ id: string }> {
+    const response = await fetch(`${this.apiUrl}/api/scout/documents?projectId=${this.scoutConfig.projectId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.scoutConfig.apiKey}`
+      },
+      body: JSON.stringify(params)
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new VectorStoreError(`Failed to create document: ${response.status} ${response.statusText} ${text}`)
+    }
+    const data = await response.json()
+    const id = data?.document?.id
+    if (!id) throw new VectorStoreError('Document creation succeeded but no id returned')
+    return { id }
+  }
+
+  /**
+   * Update a document record status via Scout API (best-effort)
+   */
+  async updateDocument(params: { id: string; status?: 'pending' | 'indexing' | 'indexed' | 'failed'; chunk_count?: number; token_count?: number; error_message?: string; indexing_stage?: string }): Promise<void> {
+    try {
+      const { id, ...rest } = params
+      // First try the dedicated status endpoint for API key auth
+      await fetch(`${this.apiUrl}/api/scout/documents/${id}/status?projectId=${this.scoutConfig.projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.scoutConfig.apiKey}`
+        },
+        body: JSON.stringify({
+          status: rest.status,
+          indexing_stage: rest.indexing_stage,
+          chunk_count: rest.chunk_count,
+          token_count: rest.token_count,
+          error_message: rest.error_message
+        })
+      }).catch(() => {})
+    } catch {}
   }
 
   /**

@@ -79,6 +79,7 @@ export interface Vector {
   id: string;
   values: number[];
   metadata: {
+    documentId?: string;
     content: string;
     type: string;
     sourceUrl: string;
@@ -199,6 +200,8 @@ export interface IVectorStoreService {
   }>;
   listSources(): Promise<string[]>;
   healthCheck(): Promise<boolean>;
+  createDocument(params: { name: string; type: 'github' | 'documentation' | 'local'; source_url: string; source_metadata?: any }): Promise<{ id: string }>;
+  updateDocument(params: { id: string; status?: 'pending' | 'indexing' | 'indexed' | 'failed'; chunk_count?: number; token_count?: number; error_message?: string; indexing_stage?: string }): Promise<void>;
 }
 
 export interface IEmbeddingService {

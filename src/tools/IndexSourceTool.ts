@@ -108,6 +108,21 @@ export class IndexSourceTool {
       const sourceType = this.detectSourceType(input.url, input.sourceType);
       console.log(`Detected source type: ${sourceType}`);
 
+      // Create a document in Scout so it appears in dashboard and we get a documentId
+      let documentId: string | null = null;
+
+      try {
+        const created = await (this.vectorStoreService as any).createDocument({
+          name: sourceType === 'github' ? new URL(input.url).pathname.replace(/^\//,'') : new URL(input.url).hostname,
+          type: sourceType,
+          source_url: input.url,
+          source_metadata: sourceType === 'github' ? { branch: input.branch || 'main' } : { maxDepth: input.maxDepth, onlyMainContent: input.onlyMainContent }
+        });
+        documentId = created?.id || null;
+      } catch (e) {
+        console.warn('Proceeding without document record; createDocument failed:', e);
+      }
+
       // Process content based on source type
       let chunks;
       let sourceTitle = '';
@@ -154,6 +169,7 @@ export class IndexSourceTool {
         id: chunk.id,
         values: embeddings[index],
         metadata: {
+          documentId: documentId || undefined,
           content: chunk.content.substring(0, 40000), // Pinecone metadata limit
           type: chunk.type,
           sourceUrl: chunk.source.url,
@@ -175,6 +191,11 @@ export class IndexSourceTool {
       const processingTime = Date.now() - startTime;
       const sourceId = await this.generateSourceId(input.url);
 
+      // Best-effort: update document status to indexed
+      if (documentId) {
+        try { await (this.vectorStoreService as any).updateDocument({ id: documentId, status: 'indexed', indexing_stage: 'completed' }); } catch {}
+      }
+
       return {
         success: true,
         message: `Successfully indexed ${chunks.length} chunks from ${sourceType === 'github' ? 'repository' : 'documentation site'}: ${sourceTitle}`,
@@ -185,6 +206,13 @@ export class IndexSourceTool {
 
     } catch (error) {
       console.error('Error indexing source:', error);
+      try {
+        // If we created a document, mark it failed
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyErr = error as any;
+        // @ts-ignore
+        if (documentId) await (this.vectorStoreService as any).updateDocument({ id: documentId, status: 'failed', indexing_stage: 'failed', error_message: anyErr?.message || String(anyErr) });
+      } catch {}
       
       const processingTime = Date.now() - startTime;
       const errorMessage = error instanceof ScoutError 
