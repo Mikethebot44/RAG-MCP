@@ -191,9 +191,30 @@ export class IndexSourceTool {
       const processingTime = Date.now() - startTime;
       const sourceId = await this.generateSourceId(input.url);
 
+      // Calculate token count for status update
+      const estimatedTokens = chunks.reduce((sum, c) => {
+        try {
+          const len = typeof c.content === 'string' ? c.content.length : 0
+          const tokens = Math.ceil(len / 4)
+          return sum + (isFinite(tokens) ? tokens : 0)
+        } catch {
+          return sum
+        }
+      }, 0)
+
       // Best-effort: update document status to indexed
       if (documentId) {
-        try { await (this.vectorStoreService as any).updateDocument({ id: documentId, status: 'indexed', indexing_stage: 'completed' }); } catch {}
+        try { 
+          await (this.vectorStoreService as any).updateDocument({ 
+            id: documentId, 
+            status: 'indexed', 
+            indexing_stage: 'completed',
+            chunk_count: chunks.length,
+            token_count: estimatedTokens
+          }); 
+        } catch (e) {
+          console.error('Failed to update document status:', e);
+        }
       }
 
       return {

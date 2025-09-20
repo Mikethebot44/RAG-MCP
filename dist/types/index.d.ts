@@ -64,6 +64,7 @@ export interface Vector {
     id: string;
     values: number[];
     metadata: {
+        documentId?: string;
         content: string;
         type: string;
         sourceUrl: string;
@@ -155,9 +156,61 @@ export declare const DeleteSourceInputSchema: z.ZodObject<{
 }, {
     sourceId: string;
 }>;
+export declare const FindSourcesInputSchema: z.ZodObject<{
+    query: z.ZodString;
+    limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    github: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    research: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    mainContentOnly: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    includeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    excludeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    github: boolean;
+    query: string;
+    limit: number;
+    research: boolean;
+    mainContentOnly: boolean;
+    includeTags?: string[] | undefined;
+    excludeTags?: string[] | undefined;
+}, {
+    query: string;
+    github?: boolean | undefined;
+    limit?: number | undefined;
+    research?: boolean | undefined;
+    mainContentOnly?: boolean | undefined;
+    includeTags?: string[] | undefined;
+    excludeTags?: string[] | undefined;
+}>;
+export declare const DeepResearchInputSchema: z.ZodObject<{
+    query: z.ZodString;
+    limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    github: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    research: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    mainContentOnly: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    includeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    excludeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    github: boolean;
+    query: string;
+    limit: number;
+    research: boolean;
+    mainContentOnly: boolean;
+    includeTags?: string[] | undefined;
+    excludeTags?: string[] | undefined;
+}, {
+    query: string;
+    github?: boolean | undefined;
+    limit?: number | undefined;
+    research?: boolean | undefined;
+    mainContentOnly?: boolean | undefined;
+    includeTags?: string[] | undefined;
+    excludeTags?: string[] | undefined;
+}>;
 export type IndexSourceInput = z.infer<typeof IndexSourceInputSchema>;
 export type SearchContextInput = z.infer<typeof SearchContextInputSchema>;
 export type DeleteSourceInput = z.infer<typeof DeleteSourceInputSchema>;
+export type FindSourcesInput = z.infer<typeof FindSourcesInputSchema>;
+export type DeepResearchInput = z.infer<typeof DeepResearchInputSchema>;
 export interface SourceInfo {
     id: string;
     url: string;
@@ -200,6 +253,22 @@ export interface IVectorStoreService {
     }>;
     listSources(): Promise<string[]>;
     healthCheck(): Promise<boolean>;
+    createDocument(params: {
+        name: string;
+        type: 'github' | 'documentation' | 'local';
+        source_url: string;
+        source_metadata?: any;
+    }): Promise<{
+        id: string;
+    }>;
+    updateDocument(params: {
+        id: string;
+        status?: 'pending' | 'indexing' | 'indexed' | 'failed';
+        chunk_count?: number;
+        token_count?: number;
+        error_message?: string;
+        indexing_stage?: string;
+    }): Promise<void>;
 }
 export interface IEmbeddingService {
     generateEmbedding(text: string): Promise<number[]>;

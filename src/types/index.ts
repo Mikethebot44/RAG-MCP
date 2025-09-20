@@ -148,10 +148,34 @@ export const DeleteSourceInputSchema = z.object({
   sourceId: z.string().describe('ID of the source to delete from vector store')
 });
 
+// Firecrawl-backed web search (find sources)
+export const FindSourcesInputSchema = z.object({
+  query: z.string().describe('Prompt or query to find relevant sources for'),
+  limit: z.number().optional().default(10).describe('Maximum number of sources to return'),
+  github: z.boolean().optional().default(false).describe('Include GitHub category results'),
+  research: z.boolean().optional().default(false).describe('Include Research category results'),
+  mainContentOnly: z.boolean().optional().default(true).describe('When indexing later, extract only main content'),
+  includeTags: z.array(z.string()).optional().describe('HTML tags or selectors to include during indexing'),
+  excludeTags: z.array(z.string()).optional().describe('HTML tags or selectors to exclude during indexing')
+})
+
+// Deep research: find sources and index them
+export const DeepResearchInputSchema = z.object({
+  query: z.string().describe('Prompt or query to research'),
+  limit: z.number().optional().default(5).describe('Number of sources to index'),
+  github: z.boolean().optional().default(false).describe('Include GitHub category results'),
+  research: z.boolean().optional().default(false).describe('Include Research category results'),
+  mainContentOnly: z.boolean().optional().default(true).describe('Extract only main content when indexing'),
+  includeTags: z.array(z.string()).optional().describe('HTML tags or selectors to include during indexing'),
+  excludeTags: z.array(z.string()).optional().describe('HTML tags or selectors to exclude during indexing')
+})
+
 // Inferred types from schemas
 export type IndexSourceInput = z.infer<typeof IndexSourceInputSchema>;
 export type SearchContextInput = z.infer<typeof SearchContextInputSchema>;
 export type DeleteSourceInput = z.infer<typeof DeleteSourceInputSchema>;
+export type FindSourcesInput = z.infer<typeof FindSourcesInputSchema>;
+export type DeepResearchInput = z.infer<typeof DeepResearchInputSchema>;
 
 // Source information for listing
 export interface SourceInfo {

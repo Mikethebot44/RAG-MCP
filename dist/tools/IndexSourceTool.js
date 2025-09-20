@@ -77,6 +77,20 @@ export class IndexSourceTool {
             // Detect source type
             const sourceType = this.detectSourceType(input.url, input.sourceType);
             console.log(`Detected source type: ${sourceType}`);
+            // Create a document in Scout so it appears in dashboard and we get a documentId
+            let documentId = null;
+            try {
+                const created = await this.vectorStoreService.createDocument({
+                    name: sourceType === 'github' ? new URL(input.url).pathname.replace(/^\//, '') : new URL(input.url).hostname,
+                    type: sourceType,
+                    source_url: input.url,
+                    source_metadata: sourceType === 'github' ? { branch: input.branch || 'main' } : { maxDepth: input.maxDepth, onlyMainContent: input.onlyMainContent }
+                });
+                documentId = created?.id || null;
+            }
+            catch (e) {
+                console.warn('Proceeding without document record; createDocument failed:', e);
+            }
             // Process content based on source type
             let chunks;
             let sourceTitle = '';
@@ -117,6 +131,7 @@ export class IndexSourceTool {
                 id: chunk.id,
                 values: embeddings[index],
                 metadata: {
+                    documentId: documentId || undefined,
                     content: chunk.content.substring(0, 40000), // Pinecone metadata limit
                     type: chunk.type,
                     sourceUrl: chunk.source.url,
@@ -135,6 +150,32 @@ export class IndexSourceTool {
             await this.vectorStoreService.upsertVectors(vectors);
             const processingTime = Date.now() - startTime;
             const sourceId = await this.generateSourceId(input.url);
+            // Calculate token count for status update
+            const estimatedTokens = chunks.reduce((sum, c) => {
+                try {
+                    const len = typeof c.content === 'string' ? c.content.length : 0;
+                    const tokens = Math.ceil(len / 4);
+                    return sum + (isFinite(tokens) ? tokens : 0);
+                }
+                catch {
+                    return sum;
+                }
+            }, 0);
+            // Best-effort: update document status to indexed
+            if (documentId) {
+                try {
+                    await this.vectorStoreService.updateDocument({
+                        id: documentId,
+                        status: 'indexed',
+                        indexing_stage: 'completed',
+                        chunk_count: chunks.length,
+                        token_count: estimatedTokens
+                    });
+                }
+                catch (e) {
+                    console.error('Failed to update document status:', e);
+                }
+            }
             return {
                 success: true,
                 message: `Successfully indexed ${chunks.length} chunks from ${sourceType === 'github' ? 'repository' : 'documentation site'}: ${sourceTitle}`,
@@ -145,6 +186,15 @@ export class IndexSourceTool {
         }
         catch (error) {
             console.error('Error indexing source:', error);
+            try {
+                // If we created a document, mark it failed
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const anyErr = error;
+                // @ts-ignore
+                if (documentId)
+                    await this.vectorStoreService.updateDocument({ id: documentId, status: 'failed', indexing_stage: 'failed', error_message: anyErr?.message || String(anyErr) });
+            }
+            catch { }
             const processingTime = Date.now() - startTime;
             const errorMessage = error instanceof ScoutError
                 ? error.message

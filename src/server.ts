@@ -18,6 +18,9 @@ import { IndexSourceTool } from './tools/IndexSourceTool.js';
 import { SearchContextTool } from './tools/SearchContextTool.js';
 import { ListSourcesTool } from './tools/ListSourcesTool.js';
 import { DeleteSourceTool } from './tools/DeleteSourceTool.js';
+import { FindSourcesTool } from './tools/FindSourcesTool.js';
+import { DeepResearchTool } from './tools/DeepResearchTool.js';
+import { ScrapePageTool } from './tools/ScrapePageTool.js';
 
 // Types
 import { ScoutConfig, ScoutError, IVectorStoreService, IEmbeddingService } from './types/index.js';
@@ -48,6 +51,9 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
     private searchContextTool!: SearchContextTool;
     private listSourcesTool!: ListSourcesTool;
     private deleteSourceTool!: DeleteSourceTool;
+    private findSourcesTool!: FindSourcesTool;
+    private deepResearchTool!: DeepResearchTool;
+    private scrapePageTool!: ScrapePageTool;
 
     constructor() {
       this.server = new Server({
@@ -149,6 +155,11 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
         this.listSourcesTool
       );
 
+      // Web search tools
+      this.findSourcesTool = new FindSourcesTool();
+      this.deepResearchTool = new DeepResearchTool();
+      this.scrapePageTool = new ScrapePageTool();
+
       if (verbose) console.log('Tools initialized successfully');
     }
 
@@ -163,7 +174,10 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
             this.indexSourceTool.getToolDefinition(),
             this.searchContextTool.getToolDefinition(),
             this.listSourcesTool.getToolDefinition(),
-            this.deleteSourceTool.getToolDefinition()
+            this.deleteSourceTool.getToolDefinition(),
+            this.findSourcesTool.getToolDefinition(),
+            this.deepResearchTool.getToolDefinition(),
+            this.scrapePageTool.getToolDefinition()
           ]
         };
       });
@@ -207,6 +221,33 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
                 content: [{
                   type: 'text',
                   text: this.formatDeleteResult(deleteResult)
+                }]
+              };
+
+            case 'find_sources':
+              const findRes = await this.findSourcesTool.execute(args as any);
+              return {
+                content: [{
+                  type: 'text',
+                  text: this.formatFindSourcesResult(findRes)
+                }]
+              };
+
+            case 'deep_research':
+              const deepRes = await this.deepResearchTool.execute(args as any);
+              return {
+                content: [{
+                  type: 'text',
+                  text: this.formatDeepResearchResult(deepRes)
+                }]
+              };
+
+            case 'scrape_page':
+              const scrapeRes = await this.scrapePageTool.execute(args as any);
+              return {
+                content: [{
+                  type: 'text',
+                  text: scrapeRes.success ? scrapeRes.markdown || '' : `❌ ${scrapeRes.message}`
                 }]
               };
 
@@ -319,6 +360,24 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
         const timeStr = result.deletionTime ? ` (${Math.round(result.deletionTime)}ms)` : '';
         return `❌ ${result.message}${timeStr}`;
       }
+    }
+
+    private formatFindSourcesResult(result: any): string {
+      if (!result.success) return `❌ ${result.message}`
+      const timeStr = result.searchTime ? ` (${Math.round(result.searchTime)}ms)` : ''
+      const lines: string[] = []
+      lines.push(`🔎 Found ${result.sources?.length || 0} sources${timeStr}`)
+      for (const [i, s] of (result.sources || []).entries()) {
+        lines.push(`${i + 1}. ${s.title || s.url} — ${s.url}${s.category ? ` (${s.category})` : ''}`)
+      }
+      return lines.join('\n')
+    }
+
+    private formatDeepResearchResult(result: any): string {
+      if (!result.success) return `❌ ${result.message}`
+      const started = typeof result.started === 'number' ? result.started : 0
+      const completed = typeof result.completed === 'number' ? result.completed : 0
+      return `🧭 Deep research queued. Started: ${started}, Completed: ${completed}`
     }
 
     /**

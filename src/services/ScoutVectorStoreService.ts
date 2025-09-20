@@ -353,10 +353,11 @@ export class ScoutVectorStoreService implements IVectorStoreService {
    * Update a document record status via Scout API (best-effort)
    */
   async updateDocument(params: { id: string; status?: 'pending' | 'indexing' | 'indexed' | 'failed'; chunk_count?: number; token_count?: number; error_message?: string; indexing_stage?: string }): Promise<void> {
+    const { id, ...rest } = params
+    // Try primary secured endpoint
+    let primaryOk = false
     try {
-      const { id, ...rest } = params
-      // First try the dedicated status endpoint for API key auth
-      await fetch(`${this.apiUrl}/api/scout/documents/${id}/status?projectId=${this.scoutConfig.projectId}`, {
+      const res = await fetch(`${this.apiUrl}/api/scout/documents/${id}/status?projectId=${this.scoutConfig.projectId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -369,8 +370,28 @@ export class ScoutVectorStoreService implements IVectorStoreService {
           token_count: rest.token_count,
           error_message: rest.error_message
         })
-      }).catch(() => {})
-    } catch {}
+      })
+      primaryOk = res.ok
+    } catch (e) {
+      // fall through
+    }
+
+    // Fallback to public progress endpoint if needed
+    if (!primaryOk) {
+      try {
+        await fetch(`${this.apiUrl}/api/documents/${id}/progress`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: rest.status,
+            indexingStage: rest.indexing_stage,
+            totalPages: undefined,
+            processedPages: undefined,
+            errorMessage: rest.error_message
+          })
+        })
+      } catch {}
+    }
   }
 
   /**

@@ -14,6 +14,9 @@ import { IndexSourceTool } from './tools/IndexSourceTool.js';
 import { SearchContextTool } from './tools/SearchContextTool.js';
 import { ListSourcesTool } from './tools/ListSourcesTool.js';
 import { DeleteSourceTool } from './tools/DeleteSourceTool.js';
+import { FindSourcesTool } from './tools/FindSourcesTool.js';
+import { DeepResearchTool } from './tools/DeepResearchTool.js';
+import { ScrapePageTool } from './tools/ScrapePageTool.js';
 // Types
 import { ScoutError } from './types/index.js';
 class ScoutMCPServer {
@@ -30,6 +33,9 @@ class ScoutMCPServer {
     searchContextTool;
     listSourcesTool;
     deleteSourceTool;
+    findSourcesTool;
+    deepResearchTool;
+    scrapePageTool;
     constructor() {
         this.server = new Server({
             name: 'scout-mcp',
@@ -98,6 +104,9 @@ class ScoutMCPServer {
         this.searchContextTool = new SearchContextTool(this.embeddingService, this.vectorStoreService);
         this.listSourcesTool = new ListSourcesTool(this.vectorStoreService);
         this.deleteSourceTool = new DeleteSourceTool(this.vectorStoreService, this.listSourcesTool);
+        this.findSourcesTool = new FindSourcesTool();
+        this.deepResearchTool = new DeepResearchTool();
+        this.scrapePageTool = new ScrapePageTool();
         console.log('Tools initialized successfully');
     }
     /**
@@ -111,7 +120,10 @@ class ScoutMCPServer {
                     this.indexSourceTool.getToolDefinition(),
                     this.searchContextTool.getToolDefinition(),
                     this.listSourcesTool.getToolDefinition(),
-                    this.deleteSourceTool.getToolDefinition()
+                    this.deleteSourceTool.getToolDefinition(),
+                    this.findSourcesTool.getToolDefinition(),
+                    this.deepResearchTool.getToolDefinition(),
+                    this.scrapePageTool.getToolDefinition()
                 ]
             };
         });
@@ -150,6 +162,30 @@ class ScoutMCPServer {
                             content: [{
                                     type: 'text',
                                     text: this.formatDeleteResult(deleteResult)
+                                }]
+                        };
+                    case 'find_sources':
+                        const findResult = await this.findSourcesTool.execute(args);
+                        return {
+                            content: [{
+                                    type: 'text',
+                                    text: this.formatFindResult(findResult)
+                                }]
+                        };
+                    case 'deep_research':
+                        const researchResult = await this.deepResearchTool.execute(args);
+                        return {
+                            content: [{
+                                    type: 'text',
+                                    text: this.formatResearchResult(researchResult)
+                                }]
+                        };
+                    case 'scrape_page':
+                        const scrapeResult = await this.scrapePageTool.execute(args);
+                        return {
+                            content: [{
+                                    type: 'text',
+                                    text: this.formatScrapeResult(scrapeResult)
                                 }]
                         };
                     default:
@@ -258,6 +294,43 @@ class ScoutMCPServer {
         else {
             const timeStr = result.deletionTime ? ` (${Math.round(result.deletionTime)}ms)` : '';
             return `❌ ${result.message}${timeStr}`;
+        }
+    }
+    /**
+     * Format find sources result for display
+     */
+    formatFindResult(result) {
+        if (result.success) {
+            return `✅ ${result.message}\n\n` +
+                `📊 **Sources found:** ${result.sources?.length || 0}`;
+        }
+        else {
+            return `❌ ${result.message}`;
+        }
+    }
+    /**
+     * Format research result for display
+     */
+    formatResearchResult(result) {
+        if (result.success) {
+            return `✅ ${result.message}\n\n` +
+                `📊 **Sources analyzed:** ${result.sourcesAnalyzed || 0}\n` +
+                `📝 **Insights generated:** ${result.insights?.length || 0}`;
+        }
+        else {
+            return `❌ ${result.message}`;
+        }
+    }
+    /**
+     * Format scrape result for display
+     */
+    formatScrapeResult(result) {
+        if (result.success) {
+            return `✅ ${result.message}\n\n` +
+                `📊 **Content length:** ${result.contentLength || 0} characters`;
+        }
+        else {
+            return `❌ ${result.message}`;
         }
     }
     /**
