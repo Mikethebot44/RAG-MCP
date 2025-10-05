@@ -2,6 +2,7 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SourceInfo, IVectorStoreService } from '../types/index.js';
 export declare class ListSourcesTool {
     private vectorStoreService;
+    private registry;
     private sourceCache;
     private cacheExpiry;
     constructor(vectorStoreService: IVectorStoreService);

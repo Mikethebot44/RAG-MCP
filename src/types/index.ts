@@ -35,6 +35,7 @@ export interface DocumentationPage {
   headings: string[];
   lastModified?: string;
   breadcrumbs: string[];
+  markdown?: string;
 }
 
 export interface DocumentationContent {
@@ -102,13 +103,6 @@ export interface QueryResult {
 
 // Configuration types
 export interface ScoutConfig {
-  // Scout API configuration (required)
-  scout: {
-    apiKey: string;      // Scout API key (scout_abc123...)
-    projectId: string;   // UUID of user's project
-    apiUrl?: string;     // Default: https://api.scout.ai
-  };
-  
   // Processing configuration (always required)
   processing: {
     maxFileSize: number;
@@ -116,7 +110,6 @@ export interface ScoutConfig {
     chunkOverlap: number;
     batchSize: number;
   };
-  
   // GitHub configuration (optional)
   github?: {
     token?: string;
@@ -141,7 +134,17 @@ export const SearchContextInputSchema = z.object({
   sources: z.array(z.string()).optional().describe('Filter by specific source URLs/IDs'),
   includeCode: z.boolean().optional().default(true).describe('Include code snippets in results'),
   includeDoc: z.boolean().optional().default(true).describe('Include documentation in results'),
-  threshold: z.number().min(0).max(1).optional().default(0.7).describe('Similarity threshold for results')
+  threshold: z.number().min(0).max(1).optional().default(0.7).describe('Similarity threshold for results'),
+
+  // Tuning knobs for retrieval quality
+  minResults: z.number().optional().default(5).describe('Target minimum results before relaxing threshold'),
+  oversample: z.number().optional().default(5).describe('Oversampling factor for initial candidates (topK = maxResults * oversample)'),
+  strategy: z.enum(['precision', 'balanced', 'recall']).optional().default('balanced').describe('Retrieval bias: precision (higher threshold), recall (lower threshold)'),
+  mmrLambda: z.number().min(0).max(1).optional().default(0.5).describe('MMR tradeoff between relevance and diversity (higher = more relevance)'),
+  maxPerSource: z.number().optional().default(2).describe('Maximum results per source URL/domain after reranking'),
+  dedupe: z.boolean().optional().default(true).describe('Deduplicate near-identical snippets by hash/source/path'),
+  lowerThresholdOnFewResults: z.boolean().optional().default(true).describe('Relax threshold adaptively if below minResults'),
+  topKCap: z.number().optional().default(100).describe('Hard cap on oversampled topK')
 });
 
 export const DeleteSourceInputSchema = z.object({
@@ -224,6 +227,7 @@ export interface IVectorStoreService {
   }>;
   listSources(): Promise<string[]>;
   healthCheck(): Promise<boolean>;
+  // OSS mode: keep method names for compatibility; no-ops in Pinecone service
   createDocument(params: { name: string; type: 'github' | 'documentation' | 'local'; source_url: string; source_metadata?: any }): Promise<{ id: string }>;
   updateDocument(params: { id: string; status?: 'pending' | 'indexing' | 'indexed' | 'failed'; chunk_count?: number; token_count?: number; error_message?: string; indexing_stage?: string }): Promise<void>;
 }

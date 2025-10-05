@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { DeleteSourceInputSchema, DeleteSourceInput, IVectorStoreService } from '../types/index.js';
+import { SourceRegistryService } from '../services/SourceRegistryService.js'
 import { ListSourcesTool } from './ListSourcesTool.js';
 
 export class DeleteSourceTool {
   private vectorStoreService: IVectorStoreService;
   private listSourcesTool: ListSourcesTool;
+  private registry = new SourceRegistryService();
 
   constructor(
     vectorStoreService: IVectorStoreService,
@@ -121,13 +123,15 @@ export class DeleteSourceTool {
         };
       }
 
-      return {
+      const result = {
         success: true,
         message: `Successfully deleted source "${sourceUrl}" and ${deletedChunks} associated chunks`,
         deletedChunks,
         sourceUrl,
         deletionTime
       };
+      try { await this.registry.remove(sourceUrl) } catch {}
+      return result;
 
     } catch (error) {
       const deletionTime = Date.now() - startTime;

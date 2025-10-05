@@ -7,20 +7,21 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 // Services
-import { ScoutVectorStoreService } from './services/ScoutVectorStoreService.js';
-import { ScoutEmbeddingService } from './services/ScoutEmbeddingService.js';
+import { PineconeVectorStoreService } from './services/PineconeVectorStoreService.js';
+import { OpenAIEmbeddingService } from './services/OpenAIEmbeddingService.js';
 import { GitHubService } from './services/GitHubService.js';
 import { WebScrapingService } from './services/WebScrapingService.js';
 import { ContentProcessor } from './services/ContentProcessor.js';
 
 // Tools
-import { IndexSourceTool } from './tools/IndexSourceTool.js';
 import { SearchContextTool } from './tools/SearchContextTool.js';
 import { ListSourcesTool } from './tools/ListSourcesTool.js';
-import { DeleteSourceTool } from './tools/DeleteSourceTool.js';
 import { FindSourcesTool } from './tools/FindSourcesTool.js';
 import { DeepResearchTool } from './tools/DeepResearchTool.js';
 import { ScrapePageTool } from './tools/ScrapePageTool.js';
+import { IndexSourceTool } from './tools/IndexSourceTool.js';
+import { DeleteSourceTool } from './tools/DeleteSourceTool.js';
+import { IndexLocalTool } from './tools/IndexLocalTool.js';
 
 // Types
 import { ScoutConfig, ScoutError, IVectorStoreService, IEmbeddingService } from './types/index.js';
@@ -47,13 +48,14 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
     private contentProcessor!: ContentProcessor;
     
     // Tools
-    private indexSourceTool!: IndexSourceTool;
     private searchContextTool!: SearchContextTool;
     private listSourcesTool!: ListSourcesTool;
-    private deleteSourceTool!: DeleteSourceTool;
     private findSourcesTool!: FindSourcesTool;
     private deepResearchTool!: DeepResearchTool;
     private scrapePageTool!: ScrapePageTool;
+  private indexSourceTool!: IndexSourceTool;
+  private deleteSourceTool!: DeleteSourceTool;
+  private indexLocalTool!: IndexLocalTool;
 
     constructor() {
       this.server = new Server({
@@ -75,17 +77,17 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
      * Load configuration from environment variables
      */
     private loadConfiguration(): ScoutConfig {
-      const requiredEnvVars = ['SCOUT_API_KEY', 'SCOUT_PROJECT_ID'];
+      const requiredEnvVars = ['OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX'];
       const missingVars = requiredEnvVars.filter(name => !process.env[name]);
 
       if (missingVars.length > 0) {
         throw new ScoutError(
           `Missing required environment variables: ${missingVars.join(', ')}\n\n` +
           'Set the following environment variables:\n' +
-          '- SCOUT_API_KEY: Your Scout API key (scout_abc123...)\n' +
-          '- SCOUT_PROJECT_ID: Your Scout project UUID\n' +
+          '- OPENAI_API_KEY: Your OpenAI API key\n' +
+          '- PINECONE_API_KEY: Your Pinecone API key\n' +
+          '- PINECONE_INDEX: Your Pinecone index name\n' +
           'Optional variables:\n' +
-          '- SCOUT_API_URL: Scout API base URL (default: https://scout-mauve-nine.vercel.app)\n' +
           '- GITHUB_TOKEN: GitHub token for higher rate limits (optional)\n' +
           '- MAX_FILE_SIZE: Maximum file size in bytes (default: 1048576)\n' +
           '- CHUNK_SIZE: Maximum chunk size in characters (default: 8192)\n' +
@@ -95,11 +97,6 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
       }
 
       return {
-        scout: {
-          apiKey: process.env.SCOUT_API_KEY!,
-          projectId: process.env.SCOUT_PROJECT_ID!,
-          apiUrl: process.env.SCOUT_API_URL || 'https://scout-mauve-nine.vercel.app'
-        },
         processing: {
           maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1048576'),
           maxChunkSize: parseInt(process.env.CHUNK_SIZE || '8192'),
@@ -117,10 +114,10 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
      * Initialize all services
      */
     private initializeServices(): void {
-      if (verbose) console.log('Initializing Scout MCP Server...');
+      if (verbose) console.log('Initializing RAG MCP (OSS)...');
 
-      this.vectorStoreService = new ScoutVectorStoreService(this.config);
-      this.embeddingService = new ScoutEmbeddingService(this.config);
+      this.vectorStoreService = new PineconeVectorStoreService();
+      this.embeddingService = new OpenAIEmbeddingService();
       this.githubService = new GitHubService(this.config);
       this.webScrapingService = new WebScrapingService();
       this.contentProcessor = new ContentProcessor(this.config);
@@ -133,14 +130,6 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
      * Initialize all tools
      */
     private initializeTools(): void {
-      this.indexSourceTool = new IndexSourceTool(
-        this.githubService,
-        this.webScrapingService,
-        this.contentProcessor,
-        this.embeddingService,
-        this.vectorStoreService
-      );
-
       this.searchContextTool = new SearchContextTool(
         this.embeddingService,
         this.vectorStoreService
@@ -150,15 +139,19 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
         this.vectorStoreService
       );
 
-      this.deleteSourceTool = new DeleteSourceTool(
-        this.vectorStoreService,
-        this.listSourcesTool
-      );
-
       // Web search tools
       this.findSourcesTool = new FindSourcesTool();
       this.deepResearchTool = new DeepResearchTool();
       this.scrapePageTool = new ScrapePageTool();
+      this.indexSourceTool = new IndexSourceTool(
+        this.githubService,
+        this.webScrapingService,
+        this.contentProcessor,
+        this.embeddingService,
+        this.vectorStoreService
+      );
+      this.deleteSourceTool = new DeleteSourceTool(this.vectorStoreService, this.listSourcesTool);
+      this.indexLocalTool = new IndexLocalTool(this.embeddingService, this.vectorStoreService, this.contentProcessor)
 
       if (verbose) console.log('Tools initialized successfully');
     }
@@ -171,13 +164,14 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
       this.server.setRequestHandler(ListToolsRequestSchema, async () => {
         return {
           tools: [
-            this.indexSourceTool.getToolDefinition(),
             this.searchContextTool.getToolDefinition(),
             this.listSourcesTool.getToolDefinition(),
-            this.deleteSourceTool.getToolDefinition(),
             this.findSourcesTool.getToolDefinition(),
             this.deepResearchTool.getToolDefinition(),
-            this.scrapePageTool.getToolDefinition()
+            this.scrapePageTool.getToolDefinition(),
+            this.indexSourceTool.getToolDefinition(),
+            this.deleteSourceTool.getToolDefinition(),
+            this.indexLocalTool.getToolDefinition()
           ]
         };
       });
@@ -188,15 +182,6 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
 
         try {
           switch (name) {
-            case 'index_source':
-              const indexResult = await this.indexSourceTool.execute(args as any);
-              return {
-                content: [{
-                  type: 'text',
-                  text: this.formatIndexResult(indexResult)
-                }]
-              };
-
             case 'search_context':
               const searchResult = await this.searchContextTool.execute(args as any);
               return {
@@ -212,15 +197,6 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
                 content: [{
                   type: 'text',
                   text: this.formatListResult(listResult)
-                }]
-              };
-
-            case 'delete_source':
-              const deleteResult = await this.deleteSourceTool.execute(args as any);
-              return {
-                content: [{
-                  type: 'text',
-                  text: this.formatDeleteResult(deleteResult)
                 }]
               };
 
@@ -247,9 +223,23 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
               return {
                 content: [{
                   type: 'text',
-                  text: scrapeRes.success ? scrapeRes.markdown || '' : `❌ ${scrapeRes.message}`
+                  text: scrapeRes.success
+                    ? (scrapeRes.markdown || '')
+                    : `❌ ${scrapeRes.message}`
                 }]
               };
+            case 'index_source': {
+              const res = await this.indexSourceTool.execute(args as any)
+              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+            }
+            case 'delete_source': {
+              const res = await this.deleteSourceTool.execute(args as any)
+              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+            }
+            case 'index_local': {
+              const res = await this.indexLocalTool.execute(args as any)
+              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+            }
 
             default:
               throw new ScoutError(`Unknown tool: ${name}`, 'UNKNOWN_TOOL');
@@ -275,18 +265,6 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
     }
 
     // Result formatting methods (same as original)
-    private formatIndexResult(result: any): string {
-      if (result.success) {
-        const timeStr = result.processingTime ? ` (${Math.round(result.processingTime / 1000)}s)` : '';
-        return `✅ ${result.message}${timeStr}\n\n` +
-          `📊 **Chunks indexed:** ${result.chunksIndexed}\n` +
-          `🆔 **Source ID:** ${result.sourceId}`;
-      } else {
-        const timeStr = result.processingTime ? ` (${Math.round(result.processingTime / 1000)}s)` : '';
-        return `❌ ${result.message}${timeStr}`;
-      }
-    }
-
     private formatSearchResult(result: any): string {
       if (!result.success) {
         const timeStr = result.searchTime ? ` (${Math.round(result.searchTime)}ms)` : '';
@@ -332,8 +310,7 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
       }
 
       if (!result.sources || result.sources.length === 0) {
-        return `📚 No sources indexed yet\n\n` +
-          'Use the `index_source` tool to index GitHub repositories or documentation sites.';
+        return `📚 No sources indexed yet`;
       }
 
       const timeStr = result.retrievalTime ? ` (${Math.round(result.retrievalTime)}ms)` : '';
@@ -352,15 +329,7 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
       return output.trim();
     }
 
-    private formatDeleteResult(result: any): string {
-      if (result.success) {
-        const timeStr = result.deletionTime ? ` (${Math.round(result.deletionTime)}ms)` : '';
-        return `✅ ${result.message}${timeStr}`;
-      } else {
-        const timeStr = result.deletionTime ? ` (${Math.round(result.deletionTime)}ms)` : '';
-        return `❌ ${result.message}${timeStr}`;
-      }
-    }
+    
 
     private formatFindSourcesResult(result: any): string {
       if (!result.success) return `❌ ${result.message}`
@@ -385,12 +354,12 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
      */
     async start(): Promise<void> {
       try {
-        if (verbose) console.log('Starting Scout MCP Server...');
+        if (verbose) console.log('Starting RAG MCP Server (OSS)...');
         if (verbose) {
           console.log('Environment check:');
-          console.log(`- SCOUT_API_KEY: ${process.env.SCOUT_API_KEY ? 'SET' : 'NOT SET'}`);
-          console.log(`- SCOUT_PROJECT_ID: ${process.env.SCOUT_PROJECT_ID ? 'SET' : 'NOT SET'}`);
-          console.log(`- SCOUT_API_URL: ${this.config.scout.apiUrl}`);
+          console.log(`- OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+          console.log(`- PINECONE_API_KEY: ${process.env.PINECONE_API_KEY ? 'SET' : 'NOT SET'}`);
+          console.log(`- PINECONE_INDEX: ${process.env.PINECONE_INDEX || 'NOT SET'}`);
         }
 
 
@@ -425,11 +394,9 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
         await this.server.connect(transport);
         
         if (verbose) {
-          console.log('Scout MCP Server is running and waiting for connections...');
+          console.log('RAG MCP Server is running and waiting for connections...');
           console.log('Configuration:');
-          console.log(`- Mode: Scout API (SaaS)`);
-          console.log(`- Project ID: ${this.config.scout.projectId}`);
-          console.log(`- API URL: ${this.config.scout.apiUrl}`);
+          console.log(`- Mode: OSS (OpenAI + Pinecone)`);
           console.log(`- Max File Size: ${this.config.processing.maxFileSize} bytes`);
           console.log(`- Chunk Size: ${this.config.processing.maxChunkSize} chars`);
         }
@@ -447,10 +414,10 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
         });
 
       } catch (error) {
-        console.error('Failed to start Scout MCP Server:', error);
+        console.error('Failed to start RAG MCP Server:', error);
         
         if (error instanceof ScoutError) {
-          console.error('\nScout Error Details:');
+          console.error('\nRAG MCP Error Details:');
           console.error('- Code:', error.code);
           console.error('- Message:', error.message);
           if (error.details) {
@@ -467,7 +434,7 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
      * Graceful shutdown
      */
     async shutdown(): Promise<void> {
-      if (verbose) console.log('Shutting down Scout MCP Server...');
+      if (verbose) console.log('Shutting down RAG MCP Server...');
       
       try {
         // Cleanup web scraping service

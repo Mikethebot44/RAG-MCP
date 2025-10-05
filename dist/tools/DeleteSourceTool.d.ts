@@ -4,6 +4,7 @@ import { ListSourcesTool } from './ListSourcesTool.js';
 export declare class DeleteSourceTool {
     private vectorStoreService;
     private listSourcesTool;
+    private registry;
     constructor(vectorStoreService: IVectorStoreService, listSourcesTool: ListSourcesTool);
     /**
      * Get tool definition for MCP

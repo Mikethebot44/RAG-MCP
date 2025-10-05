@@ -7,7 +7,7 @@ export class DeepResearchTool {
   getToolDefinition(): Tool {
     return {
       name: 'deep_research',
-      description: 'Find m relevant sources using Firecrawl Search and then index them via the Scout API (cheerio-based indexing).',
+      description: 'Find m relevant sources using Firecrawl Search and return URLs you can pass to index_source.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -26,35 +26,20 @@ export class DeepResearchTool {
 
   async execute(input: DeepResearchInput): Promise<{ success: boolean; message: string; started?: number; completed?: number; details?: any; }>{
     try {
-      // Call Scout API route to perform Firecrawl search (using app key) and index
-      const scoutApiUrl = process.env.SCOUT_API_URL || 'https://scout-mauve-nine.vercel.app'
-      const projectId = process.env.SCOUT_PROJECT_ID
-      const apiKey = process.env.SCOUT_API_KEY
-      if (!projectId || !apiKey) throw new ScoutError('SCOUT_API_KEY and SCOUT_PROJECT_ID are required', 'CONFIG_ERROR')
-
-      const indexResp = await fetch(`${scoutApiUrl}/api/scout/deep-research?projectId=${encodeURIComponent(projectId)}`, {
+      const firecrawlKey = process.env.FIRECRAWL_API_KEY
+      if (!firecrawlKey) throw new ScoutError('FIRECRAWL_API_KEY is required to run deep research', 'CONFIG_ERROR')
+      const resp = await fetch('https://api.firecrawl.dev/v1/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          query: input.query,
-          limit: Math.max(1, Math.min(25, input.limit ?? 5)),
-          options: {
-            mainContentOnly: input.mainContentOnly ?? true,
-            includeTags: input.includeTags,
-            excludeTags: input.excludeTags
-          },
-          github: !!input.github,
-          research: !!input.research
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${firecrawlKey}` },
+        body: JSON.stringify({ query: input.query, limit: Math.max(1, Math.min(25, input.limit ?? 5)) })
       })
-      const text = await indexResp.text().catch(() => '')
-      if (!indexResp.ok) {
-        throw new ScoutError(`Deep research indexing failed: ${indexResp.status} ${indexResp.statusText} ${text}`, 'INDEX_ERROR')
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '')
+        throw new ScoutError(`Firecrawl search failed: ${resp.status} ${resp.statusText} ${text}`, 'SEARCH_ERROR')
       }
-      let parsed: any = {}
-      try { parsed = JSON.parse(text) } catch {}
-
-      return { success: true, message: 'Deep research queued', started: parsed?.started || 0, completed: parsed?.completed || 0, details: parsed }
+      const data = await resp.json().catch(() => ({} as any))
+      const sources = (data?.results || []) as Array<{ url: string }>
+      return { success: true, message: `Queued ${sources.length} sources for indexing. Use index_source per URL.`, started: sources.length, completed: 0, details: { sources } }
     } catch (e) {
       return { success: false, message: e instanceof Error ? e.message : 'Unknown error' }
     }

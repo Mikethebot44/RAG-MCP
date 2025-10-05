@@ -77,20 +77,8 @@ export class IndexSourceTool {
             // Detect source type
             const sourceType = this.detectSourceType(input.url, input.sourceType);
             console.log(`Detected source type: ${sourceType}`);
-            // Create a document in Scout so it appears in dashboard and we get a documentId
+            // OSS mode: no dashboard; keep placeholder id for compatibility
             let documentId = null;
-            try {
-                const created = await this.vectorStoreService.createDocument({
-                    name: sourceType === 'github' ? new URL(input.url).pathname.replace(/^\//, '') : new URL(input.url).hostname,
-                    type: sourceType,
-                    source_url: input.url,
-                    source_metadata: sourceType === 'github' ? { branch: input.branch || 'main' } : { maxDepth: input.maxDepth, onlyMainContent: input.onlyMainContent }
-                });
-                documentId = created?.id || null;
-            }
-            catch (e) {
-                console.warn('Proceeding without document record; createDocument failed:', e);
-            }
             // Process content based on source type
             let chunks;
             let sourceTitle = '';
@@ -161,21 +149,21 @@ export class IndexSourceTool {
                     return sum;
                 }
             }, 0);
-            // Best-effort: update document status to indexed
-            if (documentId) {
-                try {
-                    await this.vectorStoreService.updateDocument({
-                        id: documentId,
-                        status: 'indexed',
-                        indexing_stage: 'completed',
-                        chunk_count: chunks.length,
-                        token_count: estimatedTokens
-                    });
-                }
-                catch (e) {
-                    console.error('Failed to update document status:', e);
-                }
+            // Update local registry for list_sources (best-effort)
+            try {
+                const { SourceRegistryService } = await import('../services/SourceRegistryService.js');
+                const registry = new SourceRegistryService();
+                await registry.upsert({
+                    id: sourceId,
+                    url: input.url,
+                    type: sourceType,
+                    title: sourceTitle,
+                    indexedAt: new Date().toISOString(),
+                    chunkCount: chunks.length,
+                    status: 'indexed'
+                });
             }
+            catch { }
             return {
                 success: true,
                 message: `Successfully indexed ${chunks.length} chunks from ${sourceType === 'github' ? 'repository' : 'documentation site'}: ${sourceTitle}`,
@@ -187,12 +175,17 @@ export class IndexSourceTool {
         catch (error) {
             console.error('Error indexing source:', error);
             try {
-                // If we created a document, mark it failed
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const anyErr = error;
-                // @ts-ignore
-                if (documentId)
-                    await this.vectorStoreService.updateDocument({ id: documentId, status: 'failed', indexing_stage: 'failed', error_message: anyErr?.message || String(anyErr) });
+                const { SourceRegistryService } = await import('../services/SourceRegistryService.js');
+                const registry = new SourceRegistryService();
+                await registry.upsert({
+                    id: await this.generateSourceId(input.url),
+                    url: input.url,
+                    type: this.detectSourceType(input.url, input.sourceType),
+                    title: new URL(input.url).hostname,
+                    indexedAt: new Date().toISOString(),
+                    chunkCount: 0,
+                    status: 'failed'
+                });
             }
             catch { }
             const processingTime = Date.now() - startTime;

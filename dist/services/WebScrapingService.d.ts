@@ -31,6 +31,7 @@ export declare class WebScrapingService {
      * Extract all content (less selective)
      */
     private extractAllContent;
+    private extractMarkdownFromHtml;
     /**
      * Clean extracted content
      */

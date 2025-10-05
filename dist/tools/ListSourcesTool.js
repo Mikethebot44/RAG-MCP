@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { SourceRegistryService } from '../services/SourceRegistryService.js';
 import { createHash } from 'crypto';
 // Input schema for ListSources (no parameters needed)
 const ListSourcesInputSchema = z.object({});
 export class ListSourcesTool {
     vectorStoreService;
+    registry = new SourceRegistryService();
     sourceCache = new Map();
     cacheExpiry = 5 * 60 * 1000; // 5 minutes
     constructor(vectorStoreService) {
@@ -29,9 +31,9 @@ export class ListSourcesTool {
         const startTime = Date.now();
         try {
             console.log('Retrieving indexed sources...');
-            // Since Pinecone doesn't provide direct access to list all vectors,
-            // we need to use alternative approaches to discover sources
-            const sources = await this.discoverSources();
+            // Prefer local registry; fallback to discovery sampling if empty
+            const registered = await this.registry.all().catch(() => []);
+            const sources = registered.length ? registered : await this.discoverSources();
             const retrievalTime = Date.now() - startTime;
             if (sources.length === 0) {
                 return {

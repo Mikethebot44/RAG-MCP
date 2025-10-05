@@ -1,11 +1,11 @@
-# Scout MCP Server
+# RAG MCP Server (OSS)
 
-Scout MCP is an open-source Model Context Protocol (MCP) server that connects coding agents to your Scout project for Retrieval Augmented Generation (RAG). It handles source ingestion, chunking, embeddings, and vector search by delegating storage and compute to the Scout API.
+RAG MCP is an open-source Model Context Protocol (MCP) server that connects coding agents to your own Retrieval Augmented Generation (RAG) stack. It performs source ingestion, chunking, embedding, and vector search using OpenAI embeddings and Pinecone as the vector database. No SaaS coupling; bring your own keys.
 
 ## Features
 
-- **Scout-Native Vector Search**: All indexing and search operations run through the Scout API using your project credentials
-- **Universal Source Indexing**: Index GitHub repositories and documentation websites with a single command
+- **OpenAI + Pinecone**: Embeddings via OpenAI; storage and retrieval via Pinecone
+- **Universal Source Indexing**: Index GitHub repos, documentation websites, and local folders/files
 - **Smart Content Processing**: Language-aware chunking with configurable sizes, overlaps, and batching
 - **MCP Integration**: Works out of the box with Claude Desktop, Cursor, and any other MCP-compatible client
 - **CLI Utilities**: Guided setup, environment validation, and server management commands
@@ -13,8 +13,9 @@ Scout MCP is an open-source Model Context Protocol (MCP) server that connects co
 ## Architecture
 
 - **Language**: TypeScript (ESM modules)
-- **Embeddings & Vector Store**: Managed by the Scout API for your configured project
-- **Content Sources**: GitHub REST API and HTML scraping via Playwright + Readability
+- **Embeddings**: OpenAI (`text-embedding-3-small` by default)
+- **Vector Store**: Pinecone (serverless or dedicated)
+- **Content Sources**: GitHub REST API, local filesystem, and HTML scraping via Playwright + Readability
 - **Transport**: STDIO for MCP communication, optional HTTP mode for local testing
 
 ## Quick Start
@@ -23,11 +24,57 @@ Scout MCP is an open-source Model Context Protocol (MCP) server that connects co
 
 You need the following before running the server:
 
-- **SCOUT_API_KEY** - personal API key from your Scout account
-- **SCOUT_PROJECT_ID** - UUID for the Scout project you want to populate
+- **OPENAI_API_KEY** - OpenAI API key
+- **PINECONE_API_KEY** - Pinecone API key
+- **PINECONE_INDEX** - Pinecone index name (pre-created)
 - **GITHUB_TOKEN** (optional) - increases GitHub rate limits when indexing repositories
+- **FIRECRAWL_API_KEY** (optional) - enables web search tools (`find_sources`, `deep_research`)
 
-> Need an API key? Visit your Scout dashboard and create one, then copy the project ID from the project settings page.
+### Do I need to create the Pinecone index?
+
+Yes. The MCP server expects an existing Pinecone index and will not create one automatically. Create a serverless index with the right dimensions and metric, then set `PINECONE_INDEX` to its name.
+
+Recommended settings (for `text-embedding-3-small`):
+
+- Dimension: 1536
+- Metric: cosine
+- Pods/replicas: serverless (on-demand)
+- Cloud/Region: choose the closest to your workloads (e.g., AWS us-east-1)
+
+Create via Pinecone Console:
+
+1. Log in to Pinecone Console, go to Indexes ➜ Create Index
+2. Name: your-index-name (use this for `PINECONE_INDEX`)
+3. Dimensions: 1536
+4. Metric: cosine
+5. Deployment: Serverless, pick Cloud and Region
+6. Create
+
+Create via Node.js script (alternative):
+
+```ts
+import { Pinecone } from '@pinecone-database/pinecone'
+
+const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! })
+await pc.indexes.create({
+  name: 'your-index-name',
+  dimension: 1536,
+  metric: 'cosine',
+  spec: { serverless: { cloud: 'aws', region: 'us-east-1' } }
+})
+console.log('Index created')
+```
+
+If you use a different embedding model, set the index `dimension` to that model’s embedding size (e.g., `3072` for `text-embedding-3-large`) and adjust your config accordingly.
+
+### Where to get API keys
+
+- OpenAI API key: create at `https://platform.openai.com/api-keys`
+- Pinecone API key: create at `https://app.pinecone.io/` under API Keys
+- Firecrawl API key (optional): get from `https://www.firecrawl.dev/` after signing up
+- GitHub token (optional, for higher rate limits/private repos):
+  - Fine‑grained token: `https://github.com/settings/personal-access-tokens/new` → Select repositories (or All) → Permissions → Repository permissions → "Contents: Read‑only" and "Metadata: Read‑only" → Generate. Use the token as `GITHUB_TOKEN`.
+  - Classic token (legacy): `https://github.com/settings/tokens/new` → scope `public_repo` (for public) or `repo` (private). Prefer fine‑grained.
 
 ### Installation
 
@@ -45,16 +92,41 @@ Set these variables in your shell, .env file, or MCP client configuration:
 
 ```bash
 # Required
-export SCOUT_API_KEY="scout_xxx"
-export SCOUT_PROJECT_ID="00000000-0000-0000-0000-000000000000"
+export OPENAI_API_KEY="sk-..."
+export PINECONE_API_KEY="pcn-..."
+export PINECONE_INDEX="your-index"
 
 # Optional
-export SCOUT_API_URL="https://api.scout.ai"    # Override the default base URL
 export GITHUB_TOKEN="ghp_xxx"                  # GitHub API token
+export FIRECRAWL_API_KEY="fc_..."              # Enables find_sources/deep_research
 export MAX_FILE_SIZE="1048576"                 # Bytes, default 1 MB
 export CHUNK_SIZE="8192"                       # Characters per chunk
 export CHUNK_OVERLAP="200"                     # Character overlap between chunks
 export BATCH_SIZE="100"                        # Batch size for embeddings/upserts
+```
+
+## Run locally (development)
+
+```bash
+git clone https://github.com/terragon-labs/scout-mcp.git
+cd RAG-MCP
+npm install
+
+# Set env vars (see above). On Windows PowerShell:
+# $env:OPENAI_API_KEY="sk-..."; $env:PINECONE_API_KEY="pcn-..."; $env:PINECONE_INDEX="your-index"
+
+# Build once
+npm run build
+
+# Run CLI directly
+node dist/cli.js init
+node dist/cli.js health
+node dist/cli.js start --verbose
+
+# Or watch-compile in one terminal
+npm run dev
+# ...and run the CLI from another terminal:
+node dist/cli.js start --verbose
 ```
 
 ### Start the Server
@@ -83,10 +155,11 @@ npx scout-mcp start --http --port 3333
       "command": "npx",
       "args": ["scout-mcp", "start"],
       "env": {
-        "SCOUT_API_KEY": "${SCOUT_API_KEY}",
-        "SCOUT_PROJECT_ID": "${SCOUT_PROJECT_ID}",
-        "SCOUT_API_URL": "${SCOUT_API_URL}",
-        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "PINECONE_API_KEY": "${PINECONE_API_KEY}",
+        "PINECONE_INDEX": "${PINECONE_INDEX}",
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
       }
     }
   }
@@ -106,22 +179,25 @@ npx scout-mcp start --http --port 3333
 
 ## MCP Tools
 
-The server exposes four MCP tools when connected to a client:
+The server exposes these MCP tools when connected to a client:
 
-- **`index_source`** - Ingest a GitHub repository or documentation site and push processed chunks to Scout
-- **`search_context`** - Perform similarity search against indexed content to retrieve relevant context snippets
-- **`list_sources`** - Enumerate sources that have been indexed in the current Scout project
-- **`delete_source`** - Remove an indexed source by ID
-
-Each tool automatically delegates vector storage, updates, and queries to the Scout API based on the provided `SCOUT_PROJECT_ID`.
+- **`search_context`** - Perform similarity search against indexed content and return ranked context with source attribution
+- **`list_sources`** - List indexed sources with metadata and statistics
+- **`find_sources`** - Discover relevant source URLs on the web for a query (uses Firecrawl if API key provided)
+- **`deep_research`** - Runs Firecrawl search and returns candidate URLs you can pass to `index_source`
+- **`scrape_page`** - Scrape a single web page and return markdown content
+- **`index_source`** - Index a GitHub repository or documentation website
+- **`index_local`** - Index a local directory or a single file
+- **`delete_source`** - Delete all vectors for a given source URL/ID
 
 ## Environment Variable Reference
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `SCOUT_API_KEY` | Yes | - | Scout API key used for authentication |
-| `SCOUT_PROJECT_ID` | Yes | - | Target Scout project UUID |
-| `SCOUT_API_URL` | No | `https://scout-mauve-nine.vercel.app` | Override base URL for self-hosted Scout deployments |
+| `OPENAI_API_KEY` | Yes | - | OpenAI API key used for embeddings |
+| `PINECONE_API_KEY` | Yes | - | Pinecone API key |
+| `PINECONE_INDEX` | Yes | - | Pinecone index name |
+| `FIRECRAWL_API_KEY` | No | - | Enables Firecrawl-backed web search tools |
 | `GITHUB_TOKEN` | No | - | GitHub token for higher rate limits |
 | `MAX_FILE_SIZE` | No | `1048576` | Maximum file size to download (bytes) |
 | `CHUNK_SIZE` | No | `8192` | Maximum characters per chunk |
@@ -132,37 +208,40 @@ Each tool automatically delegates vector storage, updates, and queries to the Sc
 
 ```
 src/
-|- cli.ts                    # Command line interface (init, health, start)
-|- index.ts                  # STDIO entry point for MCP clients
-|- server.ts                 # Shared server logic (STDIO/HTTP)
+|- cli.ts                           # Command line interface (init, health, start)
+|- index.ts                         # STDIO entry point for MCP clients
+|- server.ts                        # Shared server logic (STDIO/HTTP)
 |- services/
-|  |- ScoutVectorStoreService.ts  # Vector operations via Scout API
-|  |- ScoutEmbeddingService.ts    # Embedding operations via Scout API
-|  |- ContentProcessor.ts         # Chunking and metadata extraction
-|  |- GitHubService.ts            # GitHub fetching utilities
-|  |- WebScrapingService.ts       # Documentation crawler using Playwright
-|- tools/                        # MCP tool implementations
-|- types/                        # Shared types and schemas
+|  |- OpenAIEmbeddingService.ts     # Embedding operations via OpenAI API
+|  |- PineconeVectorStoreService.ts # Vector operations via Pinecone
+|  |- SourceRegistryService.ts      # Local JSON registry for sources
+|  |- ContentProcessor.ts           # Chunking and metadata extraction
+|  |- GitHubService.ts              # GitHub fetching utilities
+|  |- WebScrapingService.ts         # Documentation crawler using Playwright
+|- tools/                           # MCP tool implementations
+|- types/                           # Shared types and schemas
 ```
 
 ## Troubleshooting
 
 | Issue | What to check |
 | --- | --- |
-| `Missing required environment variables` | Ensure `SCOUT_API_KEY` and `SCOUT_PROJECT_ID` are exported or set in your MCP client configuration |
-| `401 Unauthorized` errors from Scout | Confirm the API key has access to the project ID you configured |
-| Indexing succeeds but search returns nothing | Verify the project in the Scout dashboard to confirm documents were added and embeddings completed |
+| `Missing required environment variables` | Ensure `OPENAI_API_KEY`, `PINECONE_API_KEY`, and `PINECONE_INDEX` are set |
+| Pinecone errors | Confirm the index exists and your API key has access |
+| Search returns nothing | Verify sources are indexed: run `list_sources` and confirm chunk counts |
 | GitHub rate limits reached | Supply `GITHUB_TOKEN` or retry after the limit resets |
 
-Enable verbose logging with `npx scout-mcp start --verbose` to see health-check results and Scout API responses.
+Enable verbose logging with `npx scout-mcp start --verbose` to see health-check results.
 
 ## Contributing
 
 1. Fork the repository and clone locally
 2. Install dependencies with `npm install`
-3. Make your changes in `src/`
-4. Run `npm run build` to compile TypeScript
-5. Open a pull request describing your changes
+3. Set required env vars (see Run locally) so health checks pass
+4. Develop in `src/`; use `npm run dev` for TypeScript watch
+5. Use `node dist/cli.js start --verbose` to run the MCP server locally
+6. Ensure `npm run build` passes and README stays accurate
+7. Open a pull request with a concise description and testing notes
 
 ## License
 

@@ -16,7 +16,16 @@ export const SearchContextInputSchema = z.object({
     sources: z.array(z.string()).optional().describe('Filter by specific source URLs/IDs'),
     includeCode: z.boolean().optional().default(true).describe('Include code snippets in results'),
     includeDoc: z.boolean().optional().default(true).describe('Include documentation in results'),
-    threshold: z.number().min(0).max(1).optional().default(0.7).describe('Similarity threshold for results')
+    threshold: z.number().min(0).max(1).optional().default(0.7).describe('Similarity threshold for results'),
+    // Tuning knobs for retrieval quality
+    minResults: z.number().optional().default(5).describe('Target minimum results before relaxing threshold'),
+    oversample: z.number().optional().default(5).describe('Oversampling factor for initial candidates (topK = maxResults * oversample)'),
+    strategy: z.enum(['precision', 'balanced', 'recall']).optional().default('balanced').describe('Retrieval bias: precision (higher threshold), recall (lower threshold)'),
+    mmrLambda: z.number().min(0).max(1).optional().default(0.5).describe('MMR tradeoff between relevance and diversity (higher = more relevance)'),
+    maxPerSource: z.number().optional().default(2).describe('Maximum results per source URL/domain after reranking'),
+    dedupe: z.boolean().optional().default(true).describe('Deduplicate near-identical snippets by hash/source/path'),
+    lowerThresholdOnFewResults: z.boolean().optional().default(true).describe('Relax threshold adaptively if below minResults'),
+    topKCap: z.number().optional().default(100).describe('Hard cap on oversampled topK')
 });
 export const DeleteSourceInputSchema = z.object({
     sourceId: z.string().describe('ID of the source to delete from vector store')

@@ -1,6 +1,8 @@
+import { SourceRegistryService } from '../services/SourceRegistryService.js';
 export class DeleteSourceTool {
     vectorStoreService;
     listSourcesTool;
+    registry = new SourceRegistryService();
     constructor(vectorStoreService, listSourcesTool) {
         this.vectorStoreService = vectorStoreService;
         this.listSourcesTool = listSourcesTool;
@@ -85,13 +87,18 @@ export class DeleteSourceTool {
                     deletionTime
                 };
             }
-            return {
+            const result = {
                 success: true,
                 message: `Successfully deleted source "${sourceUrl}" and ${deletedChunks} associated chunks`,
                 deletedChunks,
                 sourceUrl,
                 deletionTime
             };
+            try {
+                await this.registry.remove(sourceUrl);
+            }
+            catch { }
+            return result;
         }
         catch (error) {
             const deletionTime = Date.now() - startTime;

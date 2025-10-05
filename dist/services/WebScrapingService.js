@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 import { ScoutError } from '../types/index.js';
+import TurndownService from 'turndown';
 export class WebScrapingService {
     browser = null;
     userAgent = 'Mozilla/5.0 (compatible; Scout-MCP/1.0.0; +https://github.com/terragon-labs/scout-mcp)';
@@ -111,13 +112,15 @@ export class WebScrapingService {
                 console.warn(`Page too short or empty: ${url}`);
                 return null;
             }
+            const { markdown } = this.extractMarkdownFromHtml(content, url);
             return {
                 url,
                 title: title || this.extractTitleFromUrl(url),
                 content: processedContent,
                 headings: this.extractHeadings(content),
                 breadcrumbs: this.extractBreadcrumbs(url),
-                lastModified: await this.getLastModified(page)
+                lastModified: await this.getLastModified(page),
+                ...(markdown ? { markdown: `# ${title || this.extractTitleFromUrl(url)}\n\n${markdown}` } : {})
             };
         }
         finally {
@@ -191,6 +194,24 @@ export class WebScrapingService {
             return this.cleanContent(body.textContent || '');
         }
         return '';
+    }
+    extractMarkdownFromHtml(html, url) {
+        try {
+            const dom = new JSDOM(html, { url });
+            const reader = new Readability(dom.window.document);
+            const article = reader.parse();
+            const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+            const htmlForMd = article?.content ||
+                dom.window.document.querySelector('main, article, [role="main"], .content, .documentation, .docs-content, .main-content, #content, .markdown-body, .prose')?.innerHTML ||
+                dom.window.document.body?.innerHTML ||
+                '';
+            const title = article?.title;
+            const markdown = htmlForMd ? turndown.turndown(htmlForMd).trim() : undefined;
+            return { title, markdown };
+        }
+        catch {
+            return {};
+        }
     }
     /**
      * Clean extracted content

@@ -7,6 +7,7 @@ import {
   ProcessingOptions,
   ScoutError
 } from '../types/index.js';
+import TurndownService from 'turndown'
 
 export class WebScrapingService {
   private browser: Browser | null = null;
@@ -149,13 +150,15 @@ export class WebScrapingService {
         return null;
       }
 
+      const { markdown } = this.extractMarkdownFromHtml(content, url)
       return {
         url,
         title: title || this.extractTitleFromUrl(url),
         content: processedContent,
         headings: this.extractHeadings(content),
         breadcrumbs: this.extractBreadcrumbs(url),
-        lastModified: await this.getLastModified(page)
+        lastModified: await this.getLastModified(page),
+        ...(markdown ? { markdown: `# ${title || this.extractTitleFromUrl(url)}\n\n${markdown}` } : {})
       };
 
     } finally {
@@ -242,6 +245,27 @@ export class WebScrapingService {
     }
     
     return '';
+  }
+
+  private extractMarkdownFromHtml(html: string, url: string): { title?: string; markdown?: string } {
+    try {
+      const dom = new JSDOM(html, { url })
+      const reader = new Readability(dom.window.document)
+      const article = reader.parse()
+
+      const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
+      const htmlForMd =
+        (article?.content as string | undefined) ||
+        (dom.window.document.querySelector('main, article, [role="main"], .content, .documentation, .docs-content, .main-content, #content, .markdown-body, .prose') as any)?.innerHTML ||
+        dom.window.document.body?.innerHTML ||
+        ''
+
+      const title = article?.title
+      const markdown = htmlForMd ? turndown.turndown(htmlForMd).trim() : undefined
+      return { title, markdown }
+    } catch {
+      return {}
+    }
   }
 
   /**

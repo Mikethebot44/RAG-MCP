@@ -27,6 +27,7 @@ export interface DocumentationPage {
     headings: string[];
     lastModified?: string;
     breadcrumbs: string[];
+    markdown?: string;
 }
 export interface DocumentationContent {
     url: string;
@@ -84,11 +85,6 @@ export interface QueryResult {
     metadata: Vector['metadata'];
 }
 export interface ScoutConfig {
-    scout: {
-        apiKey: string;
-        projectId: string;
-        apiUrl?: string;
-    };
     processing: {
         maxFileSize: number;
         maxChunkSize: number;
@@ -134,12 +130,28 @@ export declare const SearchContextInputSchema: z.ZodObject<{
     includeCode: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     includeDoc: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     threshold: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    minResults: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    oversample: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    strategy: z.ZodDefault<z.ZodOptional<z.ZodEnum<["precision", "balanced", "recall"]>>>;
+    mmrLambda: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    maxPerSource: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    dedupe: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    lowerThresholdOnFewResults: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    topKCap: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
 }, "strip", z.ZodTypeAny, {
     query: string;
     maxResults: number;
     includeCode: boolean;
     includeDoc: boolean;
     threshold: number;
+    minResults: number;
+    oversample: number;
+    strategy: "precision" | "balanced" | "recall";
+    mmrLambda: number;
+    maxPerSource: number;
+    dedupe: boolean;
+    lowerThresholdOnFewResults: boolean;
+    topKCap: number;
     sources?: string[] | undefined;
 }, {
     query: string;
@@ -148,6 +160,14 @@ export declare const SearchContextInputSchema: z.ZodObject<{
     includeCode?: boolean | undefined;
     includeDoc?: boolean | undefined;
     threshold?: number | undefined;
+    minResults?: number | undefined;
+    oversample?: number | undefined;
+    strategy?: "precision" | "balanced" | "recall" | undefined;
+    mmrLambda?: number | undefined;
+    maxPerSource?: number | undefined;
+    dedupe?: boolean | undefined;
+    lowerThresholdOnFewResults?: boolean | undefined;
+    topKCap?: number | undefined;
 }>;
 export declare const DeleteSourceInputSchema: z.ZodObject<{
     sourceId: z.ZodString;

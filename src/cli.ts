@@ -16,31 +16,31 @@ const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
 
 console.log(chalk.blue(`
 ====================================
-        Scout MCP Server CLI
+        RAG MCP Server CLI (OSS)
 ====================================
 `));
 
 program
   .name('scout-mcp')
-  .description('Scout MCP server for enhanced coding context via vector search and RAG')
+  .description('RAG MCP server (OpenAI + Pinecone) for enhanced coding context via vector search and RAG')
   .version(packageJson.version);
 
 program
   .command('start')
-  .description('Start the Scout MCP server')
+  .description('Start the RAG MCP server')
   .option('-p, --port <port>', 'Port to run the server on (for HTTP mode)', '3000')
   .option('--http', 'Run in HTTP mode instead of STDIO mode')
   .option('--config <path>', 'Path to configuration file')
   .option('--verbose', 'Enable verbose logging')
   .action(async (options) => {
     try {
-      console.log(chalk.green('Starting Scout MCP Server...'));
+      console.log(chalk.green('Starting RAG MCP Server (OSS)...'));
 
       if (options.verbose) {
         console.log(chalk.gray('Options:', JSON.stringify(options, null, 2)));
       }
 
-      const requiredEnvVars = ['SCOUT_API_KEY', 'SCOUT_PROJECT_ID'];
+      const requiredEnvVars = ['OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX'];
       const missingVars = requiredEnvVars.filter(name => !process.env[name]);
 
       if (missingVars.length > 0) {
@@ -49,17 +49,17 @@ program
           console.error(chalk.red(`  - ${varName}`));
         });
         console.log(chalk.yellow('\nSet them using:'));
-        console.log(chalk.gray('  export SCOUT_API_KEY="your_scout_api_key"'));
-        console.log(chalk.gray('  export SCOUT_PROJECT_ID="your_scout_project_id"'));
-        console.log(chalk.gray('  export SCOUT_API_URL="https://api.scout.ai"  # optional'));
+        console.log(chalk.gray('  export OPENAI_API_KEY="sk-..."'));
+        console.log(chalk.gray('  export PINECONE_API_KEY="pcn-..."'));
+        console.log(chalk.gray('  export PINECONE_INDEX="your-index"'));
         console.log(chalk.gray('  export GITHUB_TOKEN="your_github_token"      # optional'));
+        console.log(chalk.gray('  export FIRECRAWL_API_KEY="fc-..."           # optional'));
         process.exit(1);
       }
 
       console.log(chalk.green('Environment variables verified'));
       console.log(chalk.blue('Configuration:'));
-      console.log(chalk.gray(`  - Project ID: ${process.env.SCOUT_PROJECT_ID}`));
-      console.log(chalk.gray(`  - API URL: ${process.env.SCOUT_API_URL || 'https://scout-mauve-nine.vercel.app'}`));
+      console.log(chalk.gray(`  - Pinecone Index: ${process.env.PINECONE_INDEX}`));
       console.log(chalk.gray(`  - Max File Size: ${process.env.MAX_FILE_SIZE || '1MB'}`));
       console.log(chalk.gray(`  - Mode: ${options.http ? 'HTTP' : 'STDIO (MCP)'}`));
 
@@ -80,7 +80,7 @@ program
         console.log(chalk.gray('    "command": "npx",'));
         console.log(chalk.gray('    "args": ["scout-mcp", "start"]'));
         console.log(chalk.gray('  }'));
-        console.log(chalk.blue('\nRemember to include SCOUT_API_KEY and SCOUT_PROJECT_ID in the environment.'));
+        console.log(chalk.blue('\nRemember to include OPENAI_API_KEY, PINECONE_API_KEY and PINECONE_INDEX in the environment.'));
       }
 
     } catch (error) {
@@ -91,23 +91,25 @@ program
 
 program
   .command('init')
-  .description('Initialize Scout MCP with environment setup')
+  .description('Initialize RAG MCP with environment setup')
   .action(() => {
-    console.log(chalk.blue('Scout MCP Setup'));
+    console.log(chalk.blue('RAG MCP Setup (OSS)'));
     console.log();
     console.log(chalk.yellow('Required environment variables:'));
-    console.log(chalk.gray('  SCOUT_API_KEY      - Your Scout API key (scout_abc123...)'));
-    console.log(chalk.gray('  SCOUT_PROJECT_ID   - Your Scout project UUID'));
+    console.log(chalk.gray('  OPENAI_API_KEY      - Your OpenAI API key'));
+    console.log(chalk.gray('  PINECONE_API_KEY    - Your Pinecone API key'));
+    console.log(chalk.gray('  PINECONE_INDEX      - Your Pinecone index name'));
     console.log();
     console.log(chalk.yellow('Optional environment variables:'));
-    console.log(chalk.gray('  SCOUT_API_URL      - Override the Scout API base URL'));
     console.log(chalk.gray('  GITHUB_TOKEN       - GitHub token for higher rate limits'));
+    console.log(chalk.gray('  FIRECRAWL_API_KEY  - Enables find_sources/deep_research tools'));
     console.log();
     console.log(chalk.yellow('Example setup:'));
-    console.log(chalk.green('  export SCOUT_API_KEY="your_scout_api_key"'));
-    console.log(chalk.green('  export SCOUT_PROJECT_ID="your_scout_project_id"'));
-    console.log(chalk.green('  export SCOUT_API_URL="https://api.scout.ai"  # optional'));
+    console.log(chalk.green('  export OPENAI_API_KEY="sk-..."'));
+    console.log(chalk.green('  export PINECONE_API_KEY="pcn-..."'));
+    console.log(chalk.green('  export PINECONE_INDEX="your-index"'));
     console.log(chalk.green('  export GITHUB_TOKEN="your_github_token"      # optional'));
+    console.log(chalk.green('  export FIRECRAWL_API_KEY="fc-..."           # optional'));
     console.log();
     console.log(chalk.yellow('Claude Desktop configuration:'));
     console.log(chalk.green(`{
@@ -116,10 +118,11 @@ program
       "command": "npx",
       "args": ["scout-mcp", "start"],
       "env": {
-        "SCOUT_API_KEY": "\${SCOUT_API_KEY}",
-        "SCOUT_PROJECT_ID": "\${SCOUT_PROJECT_ID}",
-        "SCOUT_API_URL": "\${SCOUT_API_URL}",
-        "GITHUB_TOKEN": "\${GITHUB_TOKEN}"
+        "OPENAI_API_KEY": "\${OPENAI_API_KEY}",
+        "PINECONE_API_KEY": "\${PINECONE_API_KEY}",
+        "PINECONE_INDEX": "\${PINECONE_INDEX}",
+        "GITHUB_TOKEN": "\${GITHUB_TOKEN}",
+        "FIRECRAWL_API_KEY": "\${FIRECRAWL_API_KEY}"
       }
     }
   }
@@ -130,13 +133,13 @@ program
 
 program
   .command('health')
-  .description('Check Scout MCP server health and configuration')
+  .description('Check RAG MCP server health and configuration')
   .action(() => {
     console.log(chalk.blue('Environment check'));
     console.log();
 
-    const requiredEnvVars = ['SCOUT_API_KEY', 'SCOUT_PROJECT_ID'];
-    const optionalEnvVars = ['SCOUT_API_URL', 'GITHUB_TOKEN', 'MAX_FILE_SIZE', 'CHUNK_SIZE'];
+    const requiredEnvVars = ['OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX'];
+    const optionalEnvVars = ['GITHUB_TOKEN', 'MAX_FILE_SIZE', 'CHUNK_SIZE', 'FIRECRAWL_API_KEY'];
 
     let allGood = true;
     requiredEnvVars.forEach(varName => {
@@ -166,7 +169,7 @@ program
   .command('version')
   .description('Show version information')
   .action(() => {
-    console.log(chalk.blue('Scout MCP Server'));
+    console.log(chalk.blue('RAG MCP Server (OSS)'));
     console.log(chalk.gray(`Version: ${packageJson.version}`));
     console.log(chalk.gray(`Node.js: ${process.version}`));
     console.log(chalk.gray(`Platform: ${process.platform}`));
@@ -174,7 +177,7 @@ program
 
 program
   .action(() => {
-    console.log(chalk.yellow('Welcome to the Scout MCP Server CLI!'));
+    console.log(chalk.yellow('Welcome to the RAG MCP Server CLI (OSS)!'));
     console.log();
     console.log(chalk.blue('Available commands:'));
     console.log(chalk.gray('  npx scout-mcp start    - Start the MCP server'));

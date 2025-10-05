@@ -27,27 +27,21 @@ export class FindSourcesTool {
   async execute(input: FindSourcesInput): Promise<{ success: boolean; message: string; sources?: Array<{ url: string; title?: string; description?: string; category?: string }>; searchTime?: number; }>{
     const start = Date.now()
     try {
-      const scoutApiUrl = process.env.SCOUT_API_URL || 'https://scout-mauve-nine.vercel.app'
-      const projectId = process.env.SCOUT_PROJECT_ID
-      const apiKey = process.env.SCOUT_API_KEY
-      if (!projectId || !apiKey) throw new ScoutError('SCOUT_API_KEY and SCOUT_PROJECT_ID are required', 'CONFIG_ERROR')
-
-      const resp = await fetch(`${scoutApiUrl}/api/scout/find-sources?projectId=${encodeURIComponent(projectId)}`, {
+      const firecrawlKey = process.env.FIRECRAWL_API_KEY
+      if (!firecrawlKey) {
+        throw new ScoutError('FIRECRAWL_API_KEY is required to find sources', 'CONFIG_ERROR')
+      }
+      const resp = await fetch('https://api.firecrawl.dev/v1/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          query: input.query,
-          limit: Math.max(1, Math.min(50, input.limit ?? 10)),
-          github: !!input.github,
-          research: !!input.research
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${firecrawlKey}` },
+        body: JSON.stringify({ query: input.query, limit: Math.max(1, Math.min(50, input.limit ?? 10)) })
       })
       if (!resp.ok) {
         const text = await resp.text().catch(() => '')
-        throw new ScoutError(`find-sources API failed: ${resp.status} ${resp.statusText} ${text}`, 'SEARCH_ERROR')
+        throw new ScoutError(`Firecrawl search failed: ${resp.status} ${resp.statusText} ${text}`, 'SEARCH_ERROR')
       }
       const data = await resp.json().catch(() => ({} as any))
-      const sources = (data?.sources || []) as Array<{ url: string; title?: string; description?: string; category?: string }>
+      const sources = ((data?.results || []) as Array<any>).map(r => ({ url: r.url, title: r.title, description: r.description }))
       return { success: true, message: `Found ${sources.length} sources`, sources, searchTime: Date.now() - start }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
