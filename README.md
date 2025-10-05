@@ -129,6 +129,57 @@ npm run dev
 node dist/cli.js start --verbose
 ```
 
+### MCP client configuration for local development
+
+When running the server from your local working copy (using `node dist/cli.js start`), configure your MCP client to execute the local CLI and pass your environment variables.
+
+Cursor (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "scout-mcp": {
+      "command": "node",
+      "args": ["<ABSOLUTE_PATH_TO>/RAG-MCP/dist/cli.js", "start"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "PINECONE_API_KEY": "${PINECONE_API_KEY}",
+        "PINECONE_INDEX": "${PINECONE_INDEX}",
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Claude Desktop (`settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "scout-mcp": {
+      "command": "node",
+      "args": ["<ABSOLUTE_PATH_TO>/RAG-MCP/dist/cli.js", "start"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "PINECONE_API_KEY": "${PINECONE_API_KEY}",
+        "PINECONE_INDEX": "${PINECONE_INDEX}",
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "FIRECRAWL_API_KEY": "${FIRECRAWL_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Notes
+
+- Replace `<ABSOLUTE_PATH_TO>` with the full path to your cloned `RAG-MCP` directory.
+- Ensure you’ve run `npm run build` so `dist/cli.js` exists.
+- On Windows, you can also run through PowerShell: `node .\\dist\\cli.js start`.
+- If using the published package instead of local build, you can keep using `"command": "npx", "args": ["scout-mcp", "start"]`.
+
 ### Start the Server
 
 ```bash

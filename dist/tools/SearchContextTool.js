@@ -1,6 +1,9 @@
 export class SearchContextTool {
     embeddingService;
     vectorStoreService;
+    // Small in-memory cache for query embeddings
+    static embeddingCache = new Map();
+    static maxCacheEntries = 256;
     constructor(embeddingService, vectorStoreService) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
@@ -58,21 +61,65 @@ export class SearchContextTool {
         const startTime = Date.now();
         try {
             console.log(`Searching for: "${input.query}"`);
-            // Generate query embedding
-            const queryEmbedding = await this.embeddingService.generateQueryEmbedding(input.query);
+            // Generate (or fetch cached) query embedding
+            const normalizedQuery = input.query.trim().toLowerCase().replace(/\s+/g, ' ');
+            let queryEmbedding = SearchContextTool.embeddingCache.get(normalizedQuery);
+            if (!queryEmbedding) {
+                queryEmbedding = await this.embeddingService.generateQueryEmbedding(normalizedQuery);
+                // LRU-ish eviction
+                if (SearchContextTool.embeddingCache.size >= SearchContextTool.maxCacheEntries) {
+                    const firstKey = SearchContextTool.embeddingCache.keys().next().value;
+                    if (firstKey)
+                        SearchContextTool.embeddingCache.delete(firstKey);
+                }
+                SearchContextTool.embeddingCache.set(normalizedQuery, queryEmbedding);
+            }
             // Build filter for vector search
             const filter = this.buildSearchFilter(input);
-            // Perform vector similarity search
+            // Perform vector similarity search with adaptive retrieval
+            const baseMaxResults = input.maxResults || 10;
+            const oversample = Math.max(1, input.oversample ?? 5);
+            const topKCap = Math.max(baseMaxResults, input.topKCap ?? 100);
+            const topK = Math.min(baseMaxResults * oversample, topKCap);
+            const minResults = Math.max(1, input.minResults ?? 5);
+            const allowAdaptive = input.lowerThresholdOnFewResults !== false;
+            // Single oversampled query with threshold 0 (we'll filter locally)
             const vectorResults = await this.vectorStoreService.queryVectors(queryEmbedding, {
-                topK: input.maxResults || 10,
-                threshold: input.threshold || 0.7,
+                topK,
+                threshold: 0,
                 filter,
-                includeMetadata: true
+                includeMetadata: true,
+                includeValues: true
             });
+            // Local adaptive thresholding
+            const thresholds = [input.threshold ?? 0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
+            let cutoff = thresholds[0];
+            let filteredVectors = vectorResults.filter(r => (r.score ?? 0) >= cutoff);
+            if (allowAdaptive && filteredVectors.length < minResults) {
+                for (const t of thresholds.slice(1)) {
+                    cutoff = t;
+                    filteredVectors = vectorResults.filter(r => (r.score ?? 0) >= cutoff);
+                    if (filteredVectors.length >= Math.min(minResults, baseMaxResults))
+                        break;
+                }
+            }
+            if (filteredVectors.length === 0) {
+                filteredVectors = vectorResults.slice(0, baseMaxResults);
+            }
             // Convert vector results to search results
-            const searchResults = this.convertToSearchResults(vectorResults, input);
-            // Re-rank results by relevance and diversify
-            const rankedResults = this.rankAndDiversifyResults(searchResults, input.query);
+            const searchResults = this.convertToSearchResults(filteredVectors, input);
+            // MMR re-ranking when vector values are available; fallback to existing strategy otherwise
+            let rankedResults;
+            const haveValues = filteredVectors.every(v => Array.isArray(v.values) && v.values.length > 0);
+            if (haveValues) {
+                const k = Math.min(baseMaxResults, searchResults.length);
+                const lambda = Math.max(0, Math.min(1, input.mmrLambda ?? 0.5));
+                const selectedIdxs = this.maximalMarginalRelevance(filteredVectors.map(v => v.values), queryEmbedding, lambda, k);
+                rankedResults = selectedIdxs.map(i => searchResults[i]);
+            }
+            else {
+                rankedResults = this.rankAndDiversifyResults(searchResults, input.query);
+            }
             const searchTime = Date.now() - startTime;
             if (rankedResults.length === 0) {
                 return {
@@ -103,6 +150,46 @@ export class SearchContextTool {
                 searchTime
             };
         }
+    }
+    // Compute cosine similarity between two vectors
+    cosine(a, b) {
+        let dot = 0, na = 0, nb = 0;
+        const len = Math.min(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+        if (na === 0 || nb === 0)
+            return 0;
+        return dot / (Math.sqrt(na) * Math.sqrt(nb));
+    }
+    // Return indices of selected items using MMR
+    maximalMarginalRelevance(candidates, query, lambda, k) {
+        const selected = [];
+        const unused = new Set(candidates.map((_, i) => i));
+        const relScores = candidates.map(v => this.cosine(v, query));
+        while (selected.length < Math.min(k, candidates.length)) {
+            let bestIdx = -1;
+            let bestScore = -Infinity;
+            for (const i of unused) {
+                const relevance = relScores[i];
+                let redundancy = 0;
+                if (selected.length > 0) {
+                    redundancy = Math.max(...selected.map(j => this.cosine(candidates[i], candidates[j])));
+                }
+                const score = lambda * relevance - (1 - lambda) * redundancy;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIdx = i;
+                }
+            }
+            if (bestIdx === -1)
+                break;
+            selected.push(bestIdx);
+            unused.delete(bestIdx);
+        }
+        return selected;
     }
     /**
      * Build search filter based on input parameters
@@ -235,9 +322,15 @@ export class SearchContextTool {
             return 'No results found.';
         }
         const formattedResults = results.map((result, index) => {
-            const sourceInfo = result.source.path
-                ? `${result.source.url}/${result.source.path}`
-                : result.source.url;
+            const sourceInfo = (() => {
+                const p = result.source.path;
+                if (!p)
+                    return result.source.url;
+                // If path already looks like an absolute URL, use it directly
+                if (/^https?:\/\//i.test(p))
+                    return p;
+                return `${result.source.url}/${p}`;
+            })();
             const metadata = [];
             if (result.metadata.language)
                 metadata.push(`Language: ${result.metadata.language}`);

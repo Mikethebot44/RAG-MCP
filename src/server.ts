@@ -142,7 +142,7 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
       // Web search tools
       this.findSourcesTool = new FindSourcesTool();
       this.deepResearchTool = new DeepResearchTool();
-      this.scrapePageTool = new ScrapePageTool();
+      this.scrapePageTool = new ScrapePageTool(this.webScrapingService);
       this.indexSourceTool = new IndexSourceTool(
         this.githubService,
         this.webScrapingService,
@@ -223,22 +223,22 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
               return {
                 content: [{
                   type: 'text',
-                  text: scrapeRes.success
-                    ? (scrapeRes.markdown || '')
-                    : `❌ ${scrapeRes.message}`
+                text: scrapeRes.success
+                  ? (scrapeRes.markdown || '')
+                  : `Error: ${scrapeRes.message}`
                 }]
               };
             case 'index_source': {
               const res = await this.indexSourceTool.execute(args as any)
-              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+              return { content: [{ type: 'text', text: res.success ? res.message : `Error: ${res.message}` }] }
             }
             case 'delete_source': {
               const res = await this.deleteSourceTool.execute(args as any)
-              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+              return { content: [{ type: 'text', text: res.success ? res.message : `Error: ${res.message}` }] }
             }
             case 'index_local': {
               const res = await this.indexLocalTool.execute(args as any)
-              return { content: [{ type: 'text', text: res.success ? `✅ ${res.message}` : `❌ ${res.message}` }] }
+              return { content: [{ type: 'text', text: res.success ? res.message : `Error: ${res.message}` }] }
             }
 
             default:
@@ -254,7 +254,7 @@ export async function createServer(options: ServerOptions = {}): Promise<{ start
           return {
             content: [{
               type: 'text',
-              text: `❌ Error: ${errorMessage}`
+            text: `Error: ${errorMessage}`
             }],
             isError: true
           };

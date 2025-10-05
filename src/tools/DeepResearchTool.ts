@@ -17,7 +17,8 @@ export class DeepResearchTool {
           research: { type: 'boolean', default: false, description: 'Include Research category results' },
           mainContentOnly: { type: 'boolean', default: true, description: 'Extract only main content when indexing' },
           includeTags: { type: 'array', items: { type: 'string' }, description: 'HTML tags/selectors to include during indexing' },
-          excludeTags: { type: 'array', items: { type: 'string' }, description: 'HTML tags/selectors to exclude during indexing' }
+          excludeTags: { type: 'array', items: { type: 'string' }, description: 'HTML tags/selectors to exclude during indexing' },
+          scrapingBackend: { type: 'string', enum: ['playwright', 'firecrawl'], default: 'playwright', description: 'Backend to use when later indexing URLs' }
         },
         required: ['query']
       }
@@ -39,7 +40,7 @@ export class DeepResearchTool {
       }
       const data = await resp.json().catch(() => ({} as any))
       const sources = (data?.results || []) as Array<{ url: string }>
-      return { success: true, message: `Queued ${sources.length} sources for indexing. Use index_source per URL.`, started: sources.length, completed: 0, details: { sources } }
+      return { success: true, message: `Queued ${sources.length} sources for indexing. Use index_source per URL.`, started: sources.length, completed: 0, details: { sources, scrapingBackend: input.scrapingBackend || 'playwright' } }
     } catch (e) {
       return { success: false, message: e instanceof Error ? e.message : 'Unknown error' }
     }

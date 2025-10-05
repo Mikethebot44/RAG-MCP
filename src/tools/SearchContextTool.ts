@@ -12,6 +12,9 @@ import {
 export class SearchContextTool {
   private embeddingService: IEmbeddingService;
   private vectorStoreService: IVectorStoreService;
+  // Small in-memory cache for query embeddings
+  private static embeddingCache: Map<string, number[]> = new Map();
+  private static maxCacheEntries = 256;
 
   constructor(
     embeddingService: IEmbeddingService,
@@ -83,25 +86,74 @@ export class SearchContextTool {
     try {
       console.log(`Searching for: "${input.query}"`);
 
-      // Generate query embedding
-      const queryEmbedding = await this.embeddingService.generateQueryEmbedding(input.query);
+      // Generate (or fetch cached) query embedding
+      const normalizedQuery = input.query.trim().toLowerCase().replace(/\s+/g, ' ');
+      let queryEmbedding = SearchContextTool.embeddingCache.get(normalizedQuery);
+      if (!queryEmbedding) {
+        queryEmbedding = await this.embeddingService.generateQueryEmbedding(normalizedQuery);
+        // LRU-ish eviction
+        if (SearchContextTool.embeddingCache.size >= SearchContextTool.maxCacheEntries) {
+          const firstKey = SearchContextTool.embeddingCache.keys().next().value as string | undefined;
+          if (firstKey) SearchContextTool.embeddingCache.delete(firstKey);
+        }
+        SearchContextTool.embeddingCache.set(normalizedQuery, queryEmbedding);
+      }
 
       // Build filter for vector search
       const filter = this.buildSearchFilter(input);
 
-      // Perform vector similarity search
+      // Perform vector similarity search with adaptive retrieval
+      const baseMaxResults = input.maxResults || 10;
+      const oversample = Math.max(1, (input as any).oversample ?? 5);
+      const topKCap = Math.max(baseMaxResults, (input as any).topKCap ?? 100);
+      const topK = Math.min(baseMaxResults * oversample, topKCap);
+
+      const minResults = Math.max(1, (input as any).minResults ?? 5);
+      const allowAdaptive = (input as any).lowerThresholdOnFewResults !== false;
+
+      // Single oversampled query with threshold 0 (we'll filter locally)
       const vectorResults = await this.vectorStoreService.queryVectors(queryEmbedding, {
-        topK: input.maxResults || 10,
-        threshold: input.threshold || 0.7,
+        topK,
+        threshold: 0,
         filter,
-        includeMetadata: true
+        includeMetadata: true,
+        includeValues: true
       });
 
-      // Convert vector results to search results
-      const searchResults = this.convertToSearchResults(vectorResults, input);
+      // Local adaptive thresholding
+      const thresholds = [input.threshold ?? 0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
+      let cutoff = thresholds[0];
+      let filteredVectors = vectorResults.filter(r => (r.score ?? 0) >= cutoff);
+      if (allowAdaptive && filteredVectors.length < minResults) {
+        for (const t of thresholds.slice(1)) {
+          cutoff = t;
+          filteredVectors = vectorResults.filter(r => (r.score ?? 0) >= cutoff);
+          if (filteredVectors.length >= Math.min(minResults, baseMaxResults)) break;
+        }
+      }
+      if (filteredVectors.length === 0) {
+        filteredVectors = vectorResults.slice(0, baseMaxResults);
+      }
 
-      // Re-rank results by relevance and diversify
-      const rankedResults = this.rankAndDiversifyResults(searchResults, input.query);
+      // Convert vector results to search results
+      const searchResults = this.convertToSearchResults(filteredVectors, input);
+
+      // MMR re-ranking when vector values are available; fallback to existing strategy otherwise
+      let rankedResults: SearchResult[];
+      const haveValues = filteredVectors.every(v => Array.isArray(v.values) && (v.values as number[]).length > 0);
+      if (haveValues) {
+        const k = Math.min(baseMaxResults, searchResults.length);
+        const lambda = Math.max(0, Math.min(1, (input as any).mmrLambda ?? 0.5));
+        const selectedIdxs = this.maximalMarginalRelevance(
+          filteredVectors.map(v => v.values as number[]),
+          queryEmbedding,
+          lambda,
+          k
+        );
+        rankedResults = selectedIdxs.map(i => searchResults[i]);
+      } else {
+        rankedResults = this.rankAndDiversifyResults(searchResults, input.query);
+      }
 
       const searchTime = Date.now() - startTime;
 
@@ -137,6 +189,39 @@ export class SearchContextTool {
         searchTime
       };
     }
+  }
+
+  // Compute cosine similarity between two vectors
+  private cosine(a: number[], b: number[]): number {
+    let dot = 0, na = 0, nb = 0;
+    const len = Math.min(a.length, b.length);
+    for (let i = 0; i < len; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    if (na === 0 || nb === 0) return 0;
+    return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  }
+
+  // Return indices of selected items using MMR
+  private maximalMarginalRelevance(candidates: number[][], query: number[], lambda: number, k: number): number[] {
+    const selected: number[] = [];
+    const unused = new Set(candidates.map((_, i) => i));
+    const relScores = candidates.map(v => this.cosine(v, query));
+    while (selected.length < Math.min(k, candidates.length)) {
+      let bestIdx = -1;
+      let bestScore = -Infinity;
+      for (const i of unused) {
+        const relevance = relScores[i];
+        let redundancy = 0;
+        if (selected.length > 0) {
+          redundancy = Math.max(...selected.map(j => this.cosine(candidates[i], candidates[j])));
+        }
+        const score = lambda * relevance - (1 - lambda) * redundancy;
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+      }
+      if (bestIdx === -1) break;
+      selected.push(bestIdx);
+      unused.delete(bestIdx);
+    }
+    return selected;
   }
 
   /**
@@ -296,9 +381,13 @@ export class SearchContextTool {
     }
 
     const formattedResults = results.map((result, index) => {
-      const sourceInfo = result.source.path 
-        ? `${result.source.url}/${result.source.path}`
-        : result.source.url;
+      const sourceInfo = (() => {
+        const p = result.source.path;
+        if (!p) return result.source.url;
+        // If path already looks like an absolute URL, use it directly
+        if (/^https?:\/\//i.test(p)) return p;
+        return `${result.source.url}/${p}`;
+      })();
       
       const metadata = [];
       if (result.metadata.language) metadata.push(`Language: ${result.metadata.language}`);

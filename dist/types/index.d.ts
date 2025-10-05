@@ -83,6 +83,7 @@ export interface QueryResult {
     id: string;
     score: number;
     metadata: Vector['metadata'];
+    values?: number[];
 }
 export interface ScoutConfig {
     processing: {
@@ -104,6 +105,8 @@ export declare const IndexSourceInputSchema: z.ZodObject<{
     maxFileSize: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     maxDepth: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     onlyMainContent: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+    tokensPerChunk: z.ZodOptional<z.ZodNumber>;
+    scrapingBackend: z.ZodDefault<z.ZodOptional<z.ZodEnum<["playwright", "firecrawl"]>>>;
 }, "strip", z.ZodTypeAny, {
     url: string;
     sourceType: "github" | "documentation" | "auto";
@@ -111,8 +114,10 @@ export declare const IndexSourceInputSchema: z.ZodObject<{
     maxFileSize: number;
     maxDepth: number;
     onlyMainContent: boolean;
+    scrapingBackend: "playwright" | "firecrawl";
     includePatterns?: string[] | undefined;
     excludePatterns?: string[] | undefined;
+    tokensPerChunk?: number | undefined;
 }, {
     url: string;
     sourceType?: "github" | "documentation" | "auto" | undefined;
@@ -122,6 +127,8 @@ export declare const IndexSourceInputSchema: z.ZodObject<{
     maxFileSize?: number | undefined;
     maxDepth?: number | undefined;
     onlyMainContent?: boolean | undefined;
+    tokensPerChunk?: number | undefined;
+    scrapingBackend?: "playwright" | "firecrawl" | undefined;
 }>;
 export declare const SearchContextInputSchema: z.ZodObject<{
     query: z.ZodString;
@@ -209,8 +216,10 @@ export declare const DeepResearchInputSchema: z.ZodObject<{
     mainContentOnly: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
     includeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     excludeTags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    scrapingBackend: z.ZodDefault<z.ZodOptional<z.ZodEnum<["playwright", "firecrawl"]>>>;
 }, "strip", z.ZodTypeAny, {
     github: boolean;
+    scrapingBackend: "playwright" | "firecrawl";
     query: string;
     limit: number;
     research: boolean;
@@ -220,6 +229,7 @@ export declare const DeepResearchInputSchema: z.ZodObject<{
 }, {
     query: string;
     github?: boolean | undefined;
+    scrapingBackend?: "playwright" | "firecrawl" | undefined;
     limit?: number | undefined;
     research?: boolean | undefined;
     mainContentOnly?: boolean | undefined;
@@ -263,6 +273,7 @@ export interface IVectorStoreService {
         filter?: Record<string, any>;
         threshold?: number;
         includeMetadata?: boolean;
+        includeValues?: boolean;
     }): Promise<QueryResult[]>;
     deleteVectors(ids: string[]): Promise<void>;
     deleteByFilter(filter: Record<string, any>): Promise<void>;

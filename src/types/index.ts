@@ -99,6 +99,7 @@ export interface QueryResult {
   id: string;
   score: number;
   metadata: Vector['metadata'];
+  values?: number[];
 }
 
 // Configuration types
@@ -125,7 +126,9 @@ export const IndexSourceInputSchema = z.object({
   excludePatterns: z.array(z.string()).optional().describe('File patterns to exclude (e.g., ["node_modules/**"])'),
   maxFileSize: z.number().optional().default(1048576).describe('Maximum file size in bytes'),
   maxDepth: z.number().optional().default(3).describe('Maximum crawl depth for documentation'),
-  onlyMainContent: z.boolean().optional().default(true).describe('Extract only main content for documentation')
+  onlyMainContent: z.boolean().optional().default(true).describe('Extract only main content for documentation'),
+  tokensPerChunk: z.number().optional().describe('Approximate tokens per chunk to re-chunk text after scraping (4 chars ≈ 1 token)'),
+  scrapingBackend: z.enum(['playwright', 'firecrawl']).optional().default('playwright').describe('Scraping backend for documentation')
 });
 
 export const SearchContextInputSchema = z.object({
@@ -170,7 +173,8 @@ export const DeepResearchInputSchema = z.object({
   research: z.boolean().optional().default(false).describe('Include Research category results'),
   mainContentOnly: z.boolean().optional().default(true).describe('Extract only main content when indexing'),
   includeTags: z.array(z.string()).optional().describe('HTML tags or selectors to include during indexing'),
-  excludeTags: z.array(z.string()).optional().describe('HTML tags or selectors to exclude during indexing')
+  excludeTags: z.array(z.string()).optional().describe('HTML tags or selectors to exclude during indexing'),
+  scrapingBackend: z.enum(['playwright', 'firecrawl']).optional().default('playwright').describe('Preferred scraping backend for subsequent indexing')
 })
 
 // Inferred types from schemas
@@ -217,6 +221,7 @@ export interface IVectorStoreService {
     filter?: Record<string, any>;
     threshold?: number;
     includeMetadata?: boolean;
+    includeValues?: boolean;
   }): Promise<QueryResult[]>;
   deleteVectors(ids: string[]): Promise<void>;
   deleteByFilter(filter: Record<string, any>): Promise<void>;

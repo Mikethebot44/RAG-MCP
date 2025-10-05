@@ -3,6 +3,8 @@ import { SearchContextInput, SearchResult, IEmbeddingService, IVectorStoreServic
 export declare class SearchContextTool {
     private embeddingService;
     private vectorStoreService;
+    private static embeddingCache;
+    private static maxCacheEntries;
     constructor(embeddingService: IEmbeddingService, vectorStoreService: IVectorStoreService);
     /**
      * Get tool definition for MCP
@@ -18,6 +20,8 @@ export declare class SearchContextTool {
         totalResults?: number;
         searchTime?: number;
     }>;
+    private cosine;
+    private maximalMarginalRelevance;
     /**
      * Build search filter based on input parameters
      */

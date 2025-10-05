@@ -198,14 +198,14 @@ export class ListSourcesTool {
         }
         const formatSource = (source, index) => {
             const indexedDate = new Date(source.indexedAt).toLocaleDateString();
-            const statusIcon = source.status === 'indexed' ? '✅' : source.status === 'indexing' ? '🔄' : '❌';
+            const statusIcon = '';
             return `## ${index + 1}. ${source.title}
-${statusIcon} **Status:** ${source.status}
-📊 **Chunks:** ${source.chunkCount}
-🔗 **URL:** ${source.url}
-📅 **Indexed:** ${indexedDate}
-🏷️ **Type:** ${source.type}
-📋 **ID:** ${source.id}`;
+Status: ${source.status}
+Chunks: ${source.chunkCount}
+URL: ${source.url}
+Indexed: ${indexedDate}
+Type: ${source.type}
+ID: ${source.id}`;
         };
         const header = `# Indexed Sources (${sources.length} total)\n\n`;
         const sourcesList = sources.map(formatSource).join('\n\n---\n\n');

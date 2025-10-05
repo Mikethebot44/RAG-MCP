@@ -29,20 +29,20 @@ export class PineconeVectorStoreService implements IVectorStoreService {
     );
   }
 
-  async queryVectors(vector: number[], options: { topK?: number; filter?: Record<string, any>; threshold?: number; includeMetadata?: boolean } = {}): Promise<QueryResult[]> {
+  async queryVectors(vector: number[], options: { topK?: number; filter?: Record<string, any>; threshold?: number; includeMetadata?: boolean; includeValues?: boolean } = {}): Promise<QueryResult[]> {
     const index = this.client.index(this.indexName).namespace(this.namespace);
     const res = await index.query({
       vector,
       topK: options.topK ?? 10,
       filter: options.filter,
       includeMetadata: true,
-      includeValues: false
+      includeValues: options.includeValues ?? false
     });
     const threshold = options.threshold ?? 0.7;
     const matches = res.matches || [];
     return (matches as any[])
       .filter((m: any) => (m.score ?? 0) >= threshold)
-      .map((m: any) => ({ id: m.id as string, score: m.score as number, metadata: (m.metadata as any) }))
+      .map((m: any) => ({ id: m.id as string, score: m.score as number, metadata: (m.metadata as any), values: (m.values as number[] | undefined) }))
       .sort((a: any, b: any) => (b.score as number) - (a.score as number));
   }
 

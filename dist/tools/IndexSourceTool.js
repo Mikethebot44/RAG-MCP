@@ -61,6 +61,16 @@ export class IndexSourceTool {
                         type: 'boolean',
                         default: true,
                         description: 'Extract only main content for documentation'
+                    },
+                    tokensPerChunk: {
+                        type: 'number',
+                        description: 'Approximate tokens per chunk to re-chunk text after scraping (4 chars ≈ 1 token)'
+                    },
+                    scrapingBackend: {
+                        type: 'string',
+                        enum: ['playwright', 'firecrawl'],
+                        default: 'playwright',
+                        description: 'Scraping backend for documentation (playwright default, firecrawl optional)'
                     }
                 },
                 required: ['url']
@@ -93,15 +103,55 @@ export class IndexSourceTool {
                 console.log(`Processed GitHub repository: ${chunks.length} chunks created`);
             }
             else {
-                // Documentation processing
-                const docContent = await this.webScrapingService.processDocumentation(input.url, {
-                    maxDepth: input.maxDepth,
-                    onlyMainContent: input.onlyMainContent,
-                    maxPages: 1000
-                });
-                sourceTitle = new URL(input.url).hostname;
-                chunks = this.contentProcessor.processDocumentationContent(docContent);
-                console.log(`Processed documentation site: ${chunks.length} chunks created from ${docContent.pages.length} pages`);
+                // Documentation processing with backend choice
+                const backend = input.scrapingBackend || 'playwright';
+                if (backend === 'firecrawl') {
+                    const apiKey = process.env.FIRECRAWL_API_KEY;
+                    if (!apiKey) {
+                        throw new ScoutError('FIRECRAWL_API_KEY is required for firecrawl backend', 'CONFIG_ERROR');
+                    }
+                    const resp = await fetch('https://api.firecrawl.dev/v1/crawl', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify({ urls: [input.url], formats: ['markdown'], maxDepth: input.maxDepth, includeTags: input.includePatterns, excludeTags: input.excludePatterns })
+                    });
+                    if (!resp.ok) {
+                        const text = await resp.text().catch(() => '');
+                        throw new ScoutError(`Firecrawl crawl failed: ${resp.status} ${resp.statusText} ${text}`, 'SCRAPING_ERROR');
+                    }
+                    const data = await resp.json().catch(() => ({}));
+                    const pages = (data?.results || []).map((r) => ({
+                        url: r.url,
+                        title: r.title || r.url,
+                        content: r.markdown || r.content || '',
+                        headings: [],
+                        breadcrumbs: []
+                    }));
+                    const docContent = { url: input.url, pages };
+                    sourceTitle = new URL(input.url).hostname;
+                    if (input.tokensPerChunk && input.tokensPerChunk > 0) {
+                        chunks = this.rechunkDocumentation(docContent, input.tokensPerChunk);
+                    }
+                    else {
+                        chunks = this.contentProcessor.processDocumentationContent(docContent);
+                    }
+                    console.log(`Processed documentation site (firecrawl): ${chunks.length} chunks created from ${pages.length} pages`);
+                }
+                else {
+                    const docContent = await this.webScrapingService.processDocumentation(input.url, {
+                        maxDepth: input.maxDepth,
+                        onlyMainContent: input.onlyMainContent,
+                        maxPages: 1000
+                    });
+                    sourceTitle = new URL(input.url).hostname;
+                    if (input.tokensPerChunk && input.tokensPerChunk > 0) {
+                        chunks = this.rechunkDocumentation(docContent, input.tokensPerChunk);
+                    }
+                    else {
+                        chunks = this.contentProcessor.processDocumentationContent(docContent);
+                    }
+                    console.log(`Processed documentation site: ${chunks.length} chunks created from ${docContent.pages.length} pages`);
+                }
             }
             if (chunks.length === 0) {
                 return {
@@ -238,6 +288,42 @@ export class IndexSourceTool {
         // This would require maintaining a metadata store
         // For now, we'll always re-index (upsert will handle duplicates)
         return false;
+    }
+    /**
+     * Re-chunk documentation pages according to tokensPerChunk
+     */
+    rechunkDocumentation(docContent, tokensPerChunk) {
+        const approxChars = Math.max(128, Math.floor(tokensPerChunk * 4));
+        const chunks = [];
+        for (const page of docContent.pages) {
+            const base = {
+                id: this.contentProcessor['generateChunkId']?.(docContent.url, page.url) ?? `${docContent.url}:${page.url}`,
+                sourceUrl: docContent.url,
+                sourcePath: page.url,
+                sourceTitle: page.title,
+                type: 'documentation',
+                size: page.content.length,
+                language: 'markdown'
+            };
+            let idx = 0;
+            for (let pos = 0; pos < page.content.length;) {
+                const end = Math.min(page.content.length, pos + approxChars);
+                const slice = page.content.slice(pos, end);
+                chunks.push({
+                    id: `${base.id}_${idx++}`,
+                    content: slice,
+                    type: base.type,
+                    source: { url: base.sourceUrl, type: 'documentation', path: base.sourcePath, title: base.sourceTitle },
+                    metadata: { size: slice.length, hash: 'n/a', section: undefined }
+                });
+                // 10% overlap
+                const overlap = Math.floor(approxChars * 0.1);
+                pos = end - overlap;
+                if (pos <= 0)
+                    pos = end;
+            }
+        }
+        return chunks;
     }
     /**
      * Get indexing statistics for a source (future enhancement)

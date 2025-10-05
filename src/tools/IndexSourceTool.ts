@@ -11,6 +11,7 @@ import {
 import { GitHubService } from '../services/GitHubService.js';
 import { WebScrapingService } from '../services/WebScrapingService.js';
 import { ContentProcessor } from '../services/ContentProcessor.js';
+import { createHash } from 'crypto';
 
 export class IndexSourceTool {
   private githubService: GitHubService;
@@ -82,6 +83,16 @@ export class IndexSourceTool {
             type: 'boolean',
             default: true,
             description: 'Extract only main content for documentation'
+          },
+          tokensPerChunk: {
+            type: 'number',
+            description: 'Approximate tokens per chunk to re-chunk text after scraping (4 chars ≈ 1 token)'
+          },
+          scrapingBackend: {
+            type: 'string',
+            enum: ['playwright', 'firecrawl'],
+            default: 'playwright',
+            description: 'Scraping backend for documentation (playwright default, firecrawl optional)'
           }
         },
         required: ['url']
@@ -127,16 +138,64 @@ export class IndexSourceTool {
         console.log(`Processed GitHub repository: ${chunks.length} chunks created`);
 
       } else {
-        // Documentation processing
-        const docContent = await this.webScrapingService.processDocumentation(input.url, {
-          maxDepth: input.maxDepth,
-          onlyMainContent: input.onlyMainContent,
-          maxPages: 1000
-        });
+        // Documentation processing with backend choice
+        const backend = input.scrapingBackend || 'playwright'
+        if (backend === 'firecrawl') {
+          const apiKey = process.env.FIRECRAWL_API_KEY
+          if (!apiKey) {
+            throw new ScoutError('FIRECRAWL_API_KEY is required for firecrawl backend', 'CONFIG_ERROR')
+          }
+          // Try Firecrawl v1 crawl first with updated schema; fallback to scrape
+          const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` } as const
+          const crawlPayload = { url: input.url, crawlerOptions: { maxDepth: input.maxDepth }, scrapeOptions: { formats: ['markdown'] } }
+          let data: any | null = null
+          let resp = await fetch('https://api.firecrawl.dev/v1/crawl', { method: 'POST', headers: authHeaders, body: JSON.stringify(crawlPayload) }).catch(() => null as any)
+          if (resp && resp.ok) {
+            data = await resp.json().catch(() => ({}))
+          }
+          if (!data) {
+            const scrapePayload = { url: input.url, formats: ['markdown'] }
+            resp = await fetch('https://api.firecrawl.dev/v1/scrape', { method: 'POST', headers: authHeaders, body: JSON.stringify(scrapePayload) }).catch(() => null as any)
+            if (resp && resp.ok) {
+              data = await resp.json().catch(() => ({}))
+            }
+          }
+          if (!data) {
+            const text = resp ? await resp.text().catch(() => '') : 'no response'
+            throw new ScoutError(`Firecrawl crawl/scrape failed: ${resp ? `${resp.status} ${resp.statusText}` : 'network error'} ${text}`, 'SCRAPING_ERROR')
+          }
+          // Normalize outputs from either endpoint
+          const results = data?.results || data?.data || (Array.isArray(data) ? data : [])
+          const pages = (results || []).map((r: any) => ({
+            url: r.url || input.url,
+            title: r.title || r.url || input.url,
+            content: r.markdown || r.content || r.text || '',
+            headings: [],
+            breadcrumbs: []
+          }))
+          const docContent = { url: input.url, pages }
+          sourceTitle = new URL(input.url).hostname;
+          if (input.tokensPerChunk && input.tokensPerChunk > 0) {
+            chunks = this.rechunkDocumentation(docContent as any, input.tokensPerChunk)
+          } else {
+            chunks = this.contentProcessor.processDocumentationContent(docContent as any);
+          }
+          console.log(`Processed documentation site (firecrawl): ${chunks.length} chunks created from ${pages.length} pages`);
+        } else {
+          const docContent = await this.webScrapingService.processDocumentation(input.url, {
+            maxDepth: input.maxDepth,
+            onlyMainContent: input.onlyMainContent,
+            maxPages: 1000
+          });
 
-        sourceTitle = new URL(input.url).hostname;
-        chunks = this.contentProcessor.processDocumentationContent(docContent);
-        console.log(`Processed documentation site: ${chunks.length} chunks created from ${docContent.pages.length} pages`);
+          sourceTitle = new URL(input.url).hostname;
+          if (input.tokensPerChunk && input.tokensPerChunk > 0) {
+            chunks = this.rechunkDocumentation(docContent as any, input.tokensPerChunk)
+          } else {
+            chunks = this.contentProcessor.processDocumentationContent(docContent);
+          }
+          console.log(`Processed documentation site: ${chunks.length} chunks created from ${docContent.pages.length} pages`);
+        }
       }
 
       if (chunks.length === 0) {
@@ -285,6 +344,42 @@ export class IndexSourceTool {
     // This would require maintaining a metadata store
     // For now, we'll always re-index (upsert will handle duplicates)
     return false;
+  }
+
+  /**
+   * Re-chunk documentation pages according to tokensPerChunk
+   */
+  private rechunkDocumentation(docContent: { url: string; pages: Array<{ url: string; title: string; content: string; headings: string[]; breadcrumbs: string[] }> }, tokensPerChunk: number) {
+    const approxChars = Math.max(128, Math.floor(tokensPerChunk * 4))
+    const chunks: any[] = []
+    for (const page of docContent.pages) {
+      const base = {
+        id: (this.contentProcessor as any)['generateChunkId']?.(docContent.url, page.url) ?? `${docContent.url}:${page.url}`,
+        sourceUrl: docContent.url,
+        sourcePath: page.url,
+        sourceTitle: page.title,
+        type: 'documentation' as const,
+        size: page.content.length,
+        language: 'markdown'
+      }
+      let idx = 0
+      for (let pos = 0; pos < page.content.length; ) {
+        const end = Math.min(page.content.length, pos + approxChars)
+        const slice = page.content.slice(pos, end)
+        chunks.push({
+          id: `${base.id}_${idx++}`,
+          content: slice,
+          type: base.type,
+          source: { url: base.sourceUrl, type: 'documentation', path: base.sourcePath, title: base.sourceTitle },
+          metadata: { size: slice.length, hash: 'n/a', section: undefined }
+        })
+        // 10% overlap
+        const overlap = Math.floor(approxChars * 0.1)
+        pos = end - overlap
+        if (pos <= 0) pos = end
+      }
+    }
+    return chunks
   }
 
   /**

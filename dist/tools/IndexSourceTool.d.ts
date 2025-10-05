@@ -41,6 +41,10 @@ export declare class IndexSourceTool {
      */
     private isSourceIndexed;
     /**
+     * Re-chunk documentation pages according to tokensPerChunk
+     */
+    private rechunkDocumentation;
+    /**
      * Get indexing statistics for a source (future enhancement)
      */
     getIndexingStats(sourceId: string): Promise<{

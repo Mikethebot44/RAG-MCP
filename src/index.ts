@@ -120,7 +120,7 @@ class ScoutMCPServer {
 
     this.findSourcesTool = new FindSourcesTool();
     this.deepResearchTool = new DeepResearchTool();
-    this.scrapePageTool = new ScrapePageTool();
+    this.scrapePageTool = new ScrapePageTool(this.webScrapingService);
 
     this.indexSourceTool = new IndexSourceTool(
       this.githubService,
@@ -208,15 +208,15 @@ class ScoutMCPServer {
 
           case 'index_source':
             const indexRes = await this.indexSourceTool.execute(args as any);
-            return { content: [{ type: 'text', text: indexRes.success ? `✅ ${indexRes.message}` : `❌ ${indexRes.message}` }] };
+            return { content: [{ type: 'text', text: indexRes.success ? indexRes.message : `Error: ${indexRes.message}` }] };
 
           case 'delete_source':
             const delRes = await this.deleteSourceTool.execute(args as any);
-            return { content: [{ type: 'text', text: delRes.success ? `✅ ${delRes.message}` : `❌ ${delRes.message}` }] };
+            return { content: [{ type: 'text', text: delRes.success ? delRes.message : `Error: ${delRes.message}` }] };
 
           case 'index_local':
             const ilRes = await this.indexLocalTool.execute(args as any);
-            return { content: [{ type: 'text', text: ilRes.success ? `✅ ${ilRes.message}` : `❌ ${ilRes.message}` }] };
+            return { content: [{ type: 'text', text: ilRes.success ? ilRes.message : `Error: ${ilRes.message}` }] };
 
           default:
             throw new ScoutError(`Unknown tool: ${name}`, 'UNKNOWN_TOOL');
@@ -231,7 +231,7 @@ class ScoutMCPServer {
         return {
           content: [{
             type: 'text',
-            text: `❌ Error: ${errorMessage}`
+            text: `Error: ${errorMessage}`
           }],
           isError: true
         };
@@ -250,12 +250,12 @@ class ScoutMCPServer {
   private formatSearchResult(result: any): string {
     if (!result.success) {
       const timeStr = result.searchTime ? ` (${Math.round(result.searchTime)}ms)` : '';
-      return `❌ ${result.message}${timeStr}`;
+      return `Error: ${result.message}${timeStr}`;
     }
 
     if (!result.results || result.results.length === 0) {
       const timeStr = result.searchTime ? ` (${Math.round(result.searchTime)}ms)` : '';
-      return `🔍 No results found${timeStr}\n\n` +
+      return `No results found${timeStr}\n\n` +
         'Try:\n' +
         '- Using different keywords\n' +
         '- Lowering the similarity threshold\n' +
@@ -263,7 +263,7 @@ class ScoutMCPServer {
     }
 
     const timeStr = result.searchTime ? ` (${Math.round(result.searchTime)}ms)` : '';
-    let output = `🔍 Found ${result.results.length} results${timeStr}\n\n`;
+    let output = `Found ${result.results.length} results${timeStr}\n\n`;
 
     result.results.forEach((res: any, index: number) => {
       const sourceInfo = res.source.path 
@@ -291,24 +291,24 @@ class ScoutMCPServer {
   private formatListResult(result: any): string {
     if (!result.success) {
       const timeStr = result.retrievalTime ? ` (${Math.round(result.retrievalTime)}ms)` : '';
-      return `❌ ${result.message}${timeStr}`;
+      return `Error: ${result.message}${timeStr}`;
     }
 
     if (!result.sources || result.sources.length === 0) {
-      return `📚 No sources indexed yet`;
+      return `No sources indexed yet`;
     }
 
     const timeStr = result.retrievalTime ? ` (${Math.round(result.retrievalTime)}ms)` : '';
-    let output = `📚 ${result.totalSources} indexed sources (${result.totalChunks} chunks)${timeStr}\n\n`;
+    let output = `${result.totalSources} indexed sources (${result.totalChunks} chunks)${timeStr}\n\n`;
 
     result.sources.forEach((source: any, index: number) => {
-      const status = source.status === 'indexed' ? '✅' : source.status === 'indexing' ? '🔄' : '❌';
+      const status = source.status;
       const date = new Date(source.indexedAt).toLocaleDateString();
       
       output += `**${index + 1}. ${source.title}**\n`;
-      output += `${status} ${source.status} • 📊 ${source.chunkCount} chunks • 📅 ${date}\n`;
-      output += `🔗 ${source.url}\n`;
-      output += `🆔 ${source.id}\n\n`;
+      output += `${status} • Chunks: ${source.chunkCount} • Indexed: ${date}\n`;
+      output += `URL: ${source.url}\n`;
+      output += `ID: ${source.id}\n\n`;
     });
 
     return output.trim();
@@ -321,10 +321,10 @@ class ScoutMCPServer {
    */
   private formatFindResult(result: any): string {
     if (result.success) {
-      return `✅ ${result.message}\n\n` +
-        `📊 **Sources found:** ${result.sources?.length || 0}`;
+      return `${result.message}\n\n` +
+        `Sources found: ${result.sources?.length || 0}`;
     } else {
-      return `❌ ${result.message}`;
+      return `Error: ${result.message}`;
     }
   }
 
@@ -333,11 +333,11 @@ class ScoutMCPServer {
    */
   private formatResearchResult(result: any): string {
     if (result.success) {
-      return `✅ ${result.message}\n\n` +
-        `📊 **Sources analyzed:** ${result.sourcesAnalyzed || 0}\n` +
-        `📝 **Insights generated:** ${result.insights?.length || 0}`;
+      return `${result.message}\n\n` +
+        `Sources analyzed: ${result.sourcesAnalyzed || 0}\n` +
+        `Insights generated: ${result.insights?.length || 0}`;
     } else {
-      return `❌ ${result.message}`;
+      return `Error: ${result.message}`;
     }
   }
 
